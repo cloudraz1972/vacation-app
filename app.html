@@ -539,9 +539,10 @@ function AddVacModal({start, end, cats, onClose, onSave}) {
   const [name,setName]=useState('');
   const [type,setType]=useState('planned');
   const [cc,setCc]=useState('');
+  const [composition,setComposition]=useState('');
   function save(){
     const cn=COUNTRIES.find(c=>c.code===cc);
-    onSave({name:name.trim()||TYPE_LABELS[type],type,countryCode:type==='school'?'':cc,countryName:type==='school'?'':(cn?.name||''),startDate:lo,endDate:hi});
+    onSave({name:name.trim()||TYPE_LABELS[type],type,countryCode:type==='school'?'':cc,countryName:type==='school'?'':(cn?.name||''),startDate:lo,endDate:hi,composition});
   }
   return (
     <div className="overlay" onClick={onClose}>
@@ -573,6 +574,13 @@ function AddVacModal({start, end, cats, onClose, onSave}) {
             </select>
           </div>
         )}
+        <div className="fg">
+          <label>הרכב</label>
+          <select className="input" value={composition} onChange={e=>setComposition(e.target.value)}>
+            <option value="">בחר הרכב...</option>
+            {['רז','אלינור','זוגי','משפחתי'].map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save}>שמור</button>
           <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
@@ -843,7 +851,7 @@ function AddExpRow({cats,onAdd}) {
 function VacCard({v,cats,dispatch}) {
   const [open,setOpen]=useState(false);
   const [ed,setEd]=useState(false);
-  const [ef,setEf]=useState({name:v.name,type:v.type,countryCode:v.countryCode,startDate:v.startDate,endDate:v.endDate});
+  const [ef,setEf]=useState({name:v.name,type:v.type,countryCode:v.countryCode,startDate:v.startDate,endDate:v.endDate,composition:v.composition||''});
   const total=v.expenses.reduce((s,e)=>s+(e.amountILS||0),0);
   const days=Math.round((new Date(v.endDate)-new Date(v.startDate))/(1000*60*60*24))+1;
   function saveEdit(){
@@ -870,6 +878,10 @@ function VacCard({v,cats,dispatch}) {
                     {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=><option key={c.code} value={c.code}>{c.name}</option>)}
                   </select>
                 )}
+                <select className="input input-sm" value={ef.composition||''} onChange={e=>setEf({...ef,composition:e.target.value})} title="הרכב">
+                  <option value="">הרכב...</option>
+                  {['רז','אלינור','זוגי','משפחתי'].map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
                 <input className="input input-sm" type="date" value={ef.startDate} onChange={e=>setEf({...ef,startDate:e.target.value})} title="תאריך התחלה"/>
                 <input className="input input-sm" type="date" value={ef.endDate} onChange={e=>setEf({...ef,endDate:e.target.value})} title="תאריך סיום"/>
                 <button className="btn btn-primary btn-sm" onClick={saveEdit}>שמור</button>
@@ -880,6 +892,7 @@ function VacCard({v,cats,dispatch}) {
                 <span className="vname">{v.name}</span>
                 <span className="type-badge" style={{background:COLORS[v.type]}}>{TYPE_LABELS[v.type]}</span>
                 {v.countryName&&<span className="vcountry">🌍 {v.countryName}</span>}
+                {v.composition&&<span className="vcountry">👥 {v.composition}</span>}
               </>
             )}
           </div>
@@ -918,7 +931,7 @@ function VacCard({v,cats,dispatch}) {
 }
 
 function AddVacManualModal({onClose,onSave}) {
-  const [f,setF]=useState({name:'',type:'planned',countryCode:'',startDate:'',endDate:''});
+  const [f,setF]=useState({name:'',type:'planned',countryCode:'',startDate:'',endDate:'',composition:''});
   function save(){
     if(!f.startDate||!f.endDate) return;
     const cn=COUNTRIES.find(c=>c.code===f.countryCode);
@@ -947,6 +960,12 @@ function AddVacManualModal({onClose,onSave}) {
         <div className="form-row">
           <div className="fg"><label>תאריך התחלה</label><input className="input" type="date" value={f.startDate} onChange={e=>setF({...f,startDate:e.target.value})}/></div>
           <div className="fg"><label>תאריך סיום</label><input className="input" type="date" value={f.endDate} onChange={e=>setF({...f,endDate:e.target.value})}/></div>
+        </div>
+        <div className="fg"><label>הרכב</label>
+          <select className="input" value={f.composition} onChange={e=>setF({...f,composition:e.target.value})}>
+            <option value="">בחר הרכב...</option>
+            {['רז','אלינור','זוגי','משפחתי'].map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
         </div>
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save}>שמור</button>
