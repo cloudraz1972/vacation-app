@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>מנהל חופשות 🌴</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+<script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyBy2Gu20CneYN7ayM6f5DneZ86w0jGwJ5s",
+    authDomain: "vacation-app-10959.firebaseapp.com",
+    projectId: "vacation-app-10959",
+    storageBucket: "vacation-app-10959.firebasestorage.app",
+    messagingSenderId: "60329924715",
+    appId: "1:60329924715:web:eab3c4b056a1253480392e"
+  });
+  const db = firebase.firestore();
+  const STATE_DOC = db.collection('vacation-app').doc('state');
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F8FAFC;--surface:#fff;--border:#E2E8F0;--text:#1E293B;--text2:#64748B;
+  --blue:#3B82F6;--yellow:#FCD34D;--green:#10B981;--red:#EF4444;
+  --nav:200px;--r:10px;--sh:0 1px 3px rgba(0,0,0,.08);--shm:0 4px 12px rgba(0,0,0,.12);
+}
+html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Segoe UI',system-ui,sans-serif;height:100%}
+#root{display:flex;min-height:100vh}
+/* Nav */
+.nav{width:var(--nav);background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;position:fixed;right:0;top:0;bottom:0;z-index:100;box-shadow:-2px 0 8px rgba(0,0,0,.04)}
+.nav-brand{display:flex;align-items:center;gap:8px;padding:0 16px 20px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.nav-brand-icon{font-size:22px}.nav-brand-text{font-weight:700;font-size:15px}
+.nav-links{list-style:none;display:flex;flex-direction:column;gap:2px;padding:0 8px}
+.nav-link{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;text-decoration:none;color:var(--text2);font-size:14px;cursor:pointer;transition:.15s}
+.nav-link:hover{background:var(--bg);color:var(--text)}
+.nav-link.active{background:#EFF6FF;color:var(--blue);font-weight:600}
+/* Main */
+.main{flex:1;margin-right:var(--nav);padding:28px 32px;min-height:100vh;overflow-y:auto}
+.page{max-width:1200px}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.page-title{font-size:24px;font-weight:700}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500;transition:.15s;white-space:nowrap}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#2563EB}
+.btn-secondary{background:var(--border);color:var(--text)}.btn-secondary:hover{background:#CBD5E1}
+.btn-success{background:var(--green);color:#fff}.btn-success:hover{background:#059669}
+.btn-danger{background:#FEE2E2;color:var(--red)}.btn-danger:hover{background:#FECACA}
+.btn-icon{background:none;padding:4px 8px;border-radius:6px;font-size:16px;color:var(--text2)}.btn-icon:hover{background:var(--bg)}
+.btn-sm{padding:5px 10px;font-size:12px}.btn-xs{padding:3px 6px;font-size:11px;border-radius:4px}
+/* Input */
+.input{border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface);width:100%;direction:rtl;transition:.15s}
+.input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.input-sm{padding:5px 8px;font-size:12px;border-radius:6px;width:auto}
+/* Legend */
+.legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2)}
+.legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+/* Year nav */
+.year-nav{display:flex;align-items:center;gap:12px}
+.year-nav .btn-icon{font-size:22px;padding:4px 10px;color:var(--blue)}
+/* Selection hint */
+.sel-hint{background:#EFF6FF;border:1px dashed var(--blue);color:var(--blue);padding:8px 16px;border-radius:8px;margin-bottom:16px;font-size:13px}
+/* Calendar */
+.cal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.cal-zoom-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.cal-zoom-bar input[type=range]{flex:1;max-width:140px;accent-color:var(--blue)}
+.month{background:var(--surface);border-radius:var(--r);padding:14px;box-shadow:var(--sh)}
+.month-title{text-align:center;font-weight:700;font-size:13px;margin-bottom:8px}
+.dow-row{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px}
+.dow{text-align:center;font-size:10px;color:var(--text2);padding:2px 0;font-weight:600}
+.days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+.day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:4px;cursor:pointer;user-select:none;transition:.1s;font-weight:500;position:relative;color:var(--text)}
+.day:hover{opacity:.8;outline:2px solid var(--blue);outline-offset:-1px}
+.day.today{font-weight:900;color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.day.in-sel{background:rgba(59,130,246,.15)!important}
+.day.sel-start{background:var(--blue)!important;color:#fff!important}
+.day.colored{color:#fff}
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px)}
+.modal{background:var(--surface);border-radius:16px;padding:28px;width:440px;max-width:90vw;box-shadow:var(--shm);max-height:90vh;overflow-y:auto}
+.modal h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.modal-dates{font-size:13px;color:var(--text2);margin-bottom:20px}
+.fg{margin-bottom:16px}
+.fg label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text2)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.type-btns{display:flex;gap:8px;flex-wrap:wrap}
+.type-btn{padding:7px 14px;border-radius:20px;border:2px solid var(--tc,#ccc);background:transparent;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text2);transition:.15s}
+.type-btn.active,.type-btn:hover{background:var(--tc);color:#fff;border-color:var(--tc)}
+.modal-actions{display:flex;gap:10px;margin-top:24px}
+/* Vacations */
+.filter-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.ftab{padding:7px 16px;border-radius:20px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text2);transition:.15s}
+.ftab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.ftab:hover:not(.active){border-color:var(--blue);color:var(--blue)}
+.vac-list{display:flex;flex-direction:column;gap:12px}
+.vcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border-right:4px solid transparent;overflow:hidden}
+.vcard-hdr{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;cursor:pointer;gap:12px}
+.vcard-hdr:hover{background:#FAFAFA}
+.vinfo{flex:1;min-width:0}
+.vtop{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.vname{font-weight:700;font-size:16px}
+.vcountry{font-size:13px;color:var(--text2)}
+.vdates{font-size:12px;color:var(--text2)}
+.type-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;color:#fff}
+.vactions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.total-badge{background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;padding:3px 10px;border-radius:12px;font-size:13px;font-weight:700}
+.exp-wrap{padding:0 20px 16px;border-top:1px solid var(--border);padding-top:16px}
+.exp-title{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text2)}
+.exp-total{text-align:left;margin-top:10px;font-size:14px;color:var(--text2)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;direction:rtl}
+th{text-align:right;padding:8px 10px;font-weight:600;color:var(--text2);border-bottom:2px solid var(--border);white-space:nowrap;background:var(--bg)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:#FAFAFA}
+.ils-cell{font-weight:600;color:#15803D;white-space:nowrap}
+/* Map */
+.map-wrap{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;position:relative;height:520px}
+.map-stats{display:flex;align-items:center;gap:12px}
+.map-badge{background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:700}
+.map-tooltip{position:fixed;background:rgba(15,23,42,.9);color:#fff;padding:6px 12px;border-radius:8px;font-size:13px;pointer-events:none;z-index:200;display:flex;align-items:center;gap:8px;transform:translateY(-100%)}
+.map-visited{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px}
+.vtag{background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600}
+/* Dashboard */
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border-radius:var(--r);padding:20px;box-shadow:var(--sh);border-top:3px solid var(--border);text-align:center}
+.stat-val{font-size:26px;font-weight:800;margin-bottom:4px}
+.stat-lbl{font-size:12px;color:var(--text2);font-weight:500}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+@media(max-width:900px){.charts-grid{grid-template-columns:1fr}}
+.chart-card{background:var(--surface);border-radius:var(--r);padding:20px;box-shadow:var(--sh)}
+.chart-title{font-size:15px;font-weight:700;margin-bottom:16px}
+.chart-svg{width:100%;overflow:visible}
+.cat-list{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.cat-row{display:flex;align-items:center;gap:10px;font-size:13px}
+.cat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+/* Settings */
+.settings-sec{background:var(--surface);border-radius:var(--r);padding:24px;box-shadow:var(--sh);margin-bottom:20px}
+.settings-sec h2{font-size:17px;font-weight:700;margin-bottom:6px}
+.settings-hint{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.8}
+.cat-items{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.cat-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);gap:10px}
+.cat-item-name{font-size:14px;font-weight:500;flex:1}
+.cat-item-acts{display:flex;gap:6px}
+.add-cat-form{display:flex;gap:10px}
+.add-cat-form .input{flex:1}
+/* Empty */
+.empty{text-align:center;padding:60px 20px;color:var(--text2);font-size:15px;background:var(--surface);border-radius:var(--r);box-shadow:var(--sh)}
+/* Edit form inline */
+.edit-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext, useReducer } = React;
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const COLORS = { school:'#3B82F6', planned:'#FCD34D', paid:'#10B981', health:'#1E1E1E', closed:'#EF4444', work:'#6B7280' };
+const TYPE_LABELS = { school:'חופשת בית ספר', planned:'מתוכננת', paid:'משולמת', health:'בריאות', closed:'יומן סגור', work:'נסיעת עבודה' };
+const VACATION_TYPES = ['school','planned','paid']; // types that appear on map/expenses
+const HEB_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const HEB_DAYS = ['א','ב','ג','ד','ה','ו','ש'];
+
+const CURRENCIES = [
+  {code:'ILS',name:'שקל ₪'},{code:'USD',name:'דולר $'},{code:'EUR',name:'אירו €'},
+  {code:'GBP',name:'פאונד £'},{code:'JPY',name:'ין ¥'},{code:'THB',name:'באט ฿'},
+  {code:'AUD',name:'A$'},{code:'CZK',name:'קורונה Kč'},{code:'PLN',name:'זלוטי zł'},
+  {code:'HUF',name:'פורינט Ft'},{code:'TRY',name:'לירה ₺'},{code:'EGP',name:'פאונד מצ £E'},
+  {code:'MAD',name:'דירהם מר'},{code:'NOK',name:'קרונה נור'},{code:'SEK',name:'קרונה שו'},
+  {code:'CHF',name:'פרנק Fr'},{code:'DKK',name:'קרונה דנ'},{code:'CAD',name:'C$'},
+  {code:'MXN',name:'פסו $'},{code:'IDR',name:'רופיה Rp'},{code:'VND',name:'דונג ₫'},
+  {code:'INR',name:'רופי ₹'},{code:'AED',name:'דירהם AED'},{code:'ZAR',name:'ראנד R'},
+];
+
+const COUNTRIES = [
+  {code:'AL',num:'8',name:'אלבניה'},{code:'AT',num:'40',name:'אוסטריה'},
+  {code:'AU',num:'36',name:'אוסטרליה'},{code:'AE',num:'784',name:'איחוד האמירויות'},
+  {code:'BE',num:'56',name:'בלגיה'},{code:'BG',num:'100',name:'בולגריה'},
+  {code:'BR',num:'76',name:'ברזיל'},{code:'CA',num:'124',name:'קנדה'},
+  {code:'CH',num:'756',name:'שוויץ'},{code:'CN',num:'156',name:'סין'},
+  {code:'CY',num:'196',name:'קפריסין'},{code:'CZ',num:'203',name:"צ'כיה"},
+  {code:'DE',num:'276',name:'גרמניה'},{code:'DK',num:'208',name:'דנמרק'},
+  {code:'EG',num:'818',name:'מצרים'},{code:'ES',num:'724',name:'ספרד'},
+  {code:'FI',num:'246',name:'פינלנד'},{code:'FR',num:'250',name:'צרפת'},
+  {code:'GB',num:'826',name:'בריטניה'},{code:'GE',num:'268',name:'גאורגיה'},
+  {code:'GR',num:'300',name:'יוון'},{code:'HR',num:'191',name:'קרואטיה'},
+  {code:'HU',num:'348',name:'הונגריה'},{code:'ID',num:'360',name:'אינדונזיה'},
+  {code:'IE',num:'372',name:'אירלנד'},{code:'IL',num:'376',name:'ישראל'},
+  {code:'IN',num:'356',name:'הודו'},{code:'IS',num:'352',name:'איסלנד'},
+  {code:'IT',num:'380',name:'איטליה'},{code:'JO',num:'400',name:'ירדן'},
+  {code:'JP',num:'392',name:'יפן'},{code:'KE',num:'404',name:'קניה'},
+  {code:'MA',num:'504',name:'מרוקו'},{code:'MT',num:'470',name:'מלטה'},
+  {code:'MX',num:'484',name:'מקסיקו'},{code:'NL',num:'528',name:'הולנד'},
+  {code:'NO',num:'578',name:'נורווגיה'},{code:'NZ',num:'554',name:'ניו זילנד'},
+  {code:'PE',num:'604',name:'פרו'},{code:'PH',num:'608',name:'פיליפינים'},
+  {code:'PL',num:'616',name:'פולין'},{code:'PT',num:'620',name:'פורטוגל'},
+  {code:'RO',num:'642',name:'רומניה'},{code:'RS',num:'688',name:'סרביה'},
+  {code:'SE',num:'752',name:'שוודיה'},{code:'SI',num:'705',name:'סלובניה'},
+  {code:'SK',num:'703',name:'סלובקיה'},{code:'TH',num:'764',name:'תאילנד'},
+  {code:'TN',num:'788',name:'תוניסיה'},{code:'TR',num:'792',name:'טורקיה'},
+  {code:'TZ',num:'834',name:'טנזניה'},{code:'UA',num:'804',name:'אוקראינה'},
+  {code:'US',num:'840',name:'ארצות הברית'},{code:'VN',num:'704',name:'וייטנאם'},
+  {code:'ZA',num:'710',name:'דרום אפריקה'},{code:'ME',num:'499',name:'מונטנגרו'},
+];
+const numToCountry = Object.fromEntries(COUNTRIES.map(c => [c.num, c]));
+
+const DEFAULT_CATS = ['טיסות','מלון','אוכל','אטרקציות','קניות','תחבורה','ביטוח','אחר'];
+
+function genId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+function fmtDate(d) { if (!d) return ''; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
+function numFmt(n) { return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+
+function getDayStyle(types) {
+  const s = types.has('school');
+  const VAC_PRIORITY = ['health','paid','planned','closed','work'];
+  const vacType = VAC_PRIORITY.find(t => t !== 'school' && types.has(t)) || null;
+  const vacColor = vacType ? COLORS[vacType] : null;
+  if (s && vacColor) return { background: `linear-gradient(135deg,${COLORS.school} 50%,${vacColor} 50%)` };
+  if (s) return { backgroundColor: COLORS.school };
+  if (vacColor) return { backgroundColor: vacColor };
+  return {};
+}
+
+function dateRange(a, b) {
+  const dates = [], cur = new Date(a), end = new Date(b);
+  while (cur <= end) { dates.push(cur.toISOString().slice(0,10)); cur.setDate(cur.getDate()+1); }
+  return dates;
+}
+
+// ── Store ──────────────────────────────────────────────────────────────────
+const Ctx = createContext(null);
+const SKEY = 'vacation-app-v2';
+const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS] };
+
+function reducer(s, a) {
+  switch(a.t) {
+    case 'SET_YEAR': return {...s, year: a.year};
+    case 'ADD_VAC': return {...s, vacations: [...s.vacations, {...a.v, id:genId(), expenses:[]}]};
+    case 'UPD_VAC': return {...s, vacations: s.vacations.map(v => v.id===a.id ? {...v,...a.u} : v)};
+    case 'DEL_VAC': return {...s, vacations: s.vacations.filter(v => v.id!==a.id)};
+    case 'ADD_EXP': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, expenses:[...v.expenses,{...a.e,id:genId()}]} : v)};
+    case 'UPD_EXP': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, expenses:v.expenses.map(e => e.id===a.eid?{...e,...a.u}:e)} : v)};
+    case 'DEL_EXP': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, expenses:v.expenses.filter(e=>e.id!==a.eid)} : v)};
+    case 'ADD_CAT': return s.cats.includes(a.n) ? s : {...s, cats:[...s.cats,a.n]};
+    case 'REN_CAT': return {...s, cats:s.cats.map(c=>c===a.o?a.n:c)};
+    case 'DEL_CAT': return {...s, cats:s.cats.filter(c=>c!==a.n)};
+    case 'LOAD': return {...initState,...a.s};
+    default: return s;
+  }
+}
+
+function StoreProvider({children}) {
+  const [state, dispatch] = useReducer(reducer, initState);
+  const [loaded, setLoaded] = useState(false);
+  const saveTimer = useRef(null);
+  const isRemoteUpdate = useRef(false);
+
+  // האזן לשינויים מ-Firestore (סנכרון בזמן אמת)
+  useEffect(()=>{
+    const unsub = STATE_DOC.onSnapshot(doc=>{
+      if(doc.exists){
+        const data = doc.data();
+        isRemoteUpdate.current = true;
+        dispatch({t:'LOAD', s:{...initState,...data}});
+      }
+      setLoaded(true);
+    }, ()=>setLoaded(true));
+    return unsub;
+  },[]);
+
+  // שמור ל-Firestore כשהמצב משתנה (debounce 600ms)
+  useEffect(()=>{
+    if(!loaded) return;
+    if(isRemoteUpdate.current){ isRemoteUpdate.current=false; return; }
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(()=>{ STATE_DOC.set(state); }, 600);
+  },[state, loaded]);
+
+  if(!loaded) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:16,color:'#64748B'}}>
+      <div style={{fontSize:32}}>🌴</div>
+      <div>טוען נתונים...</div>
+    </div>
+  );
+  return <Ctx.Provider value={{state,dispatch}}>{children}</Ctx.Provider>;
+}
+function useStore() { return useContext(Ctx); }
+
+// ── Simple SVG Charts ──────────────────────────────────────────────────────
+const PIE_COLS = ['#3B82F6','#10B981','#FCD34D','#EF4444','#8B5CF6','#06B6D4','#F97316','#EC4899','#14B8A6','#84CC16'];
+
+function BarChart({data, colorFn}) {
+  if (!data.length) return null;
+  const W=500, H=220, PAD={t:10,r:10,b:60,l:60};
+  const maxV = Math.max(...data.map(d=>d.v), 1);
+  const cW = (W-PAD.l-PAD.r)/data.length;
+  const barW = Math.min(cW*0.6, 50);
+  return (
+    <svg className="chart-svg" viewBox={`0 0 ${W} ${H}`}>
+      {[0,.25,.5,.75,1].map(p=>{
+        const y=PAD.t+(H-PAD.t-PAD.b)*(1-p);
+        return <g key={p}>
+          <line x1={PAD.l} x2={W-PAD.r} y1={y} y2={y} stroke="#F3F4F6" strokeWidth="1"/>
+          <text x={PAD.l-6} y={y+4} textAnchor="end" fontSize="10" fill="#94A3B8">{numFmt(maxV*p)}</text>
+        </g>;
+      })}
+      {data.map((d,i)=>{
+        const x=PAD.l+cW*i+cW/2;
+        const bH=(d.v/maxV)*(H-PAD.t-PAD.b);
+        const y=PAD.t+(H-PAD.t-PAD.b)-bH;
+        const lbl=d.name.length>10?d.name.slice(0,10)+'…':d.name;
+        return <g key={i}>
+          <rect x={x-barW/2} y={y} width={barW} height={bH} fill={colorFn?colorFn(d):PIE_COLS[i%PIE_COLS.length]} rx="3"/>
+          <text x={x} y={H-PAD.b+14} textAnchor="middle" fontSize="10" fill="#64748B">{lbl}</text>
+          {bH>16&&<text x={x} y={y+12} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="600">{numFmt(d.v)}</text>}
+        </g>;
+      })}
+    </svg>
+  );
+}
+
+function PieChart({data}) {
+  if (!data.length) return null;
+  const total = data.reduce((s,d)=>s+d.v,0);
+  let angle = -Math.PI/2;
+  const cx=150,cy=110,r=90;
+  const slices = data.map((d,i)=>{
+    const sweep=(d.v/total)*Math.PI*2;
+    const x1=cx+r*Math.cos(angle), y1=cy+r*Math.sin(angle);
+    angle+=sweep;
+    const x2=cx+r*Math.cos(angle), y2=cy+r*Math.sin(angle);
+    const large=sweep>Math.PI?1:0;
+    return {d:`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`, c:PIE_COLS[i%PIE_COLS.length], name:d.name, v:d.v, pct:((d.v/total)*100).toFixed(0)};
+  });
+  return (
+    <svg className="chart-svg" viewBox="0 0 500 220">
+      {slices.map((s,i)=><path key={i} d={s.d} fill={s.c} stroke="#fff" strokeWidth="2"/>)}
+      <div/>
+    </svg>
+  );
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+const ROUTES = [
+  {path:'/calendar',label:'לוח שנה',icon:'📅'},
+  {path:'/map',label:'מפת עולם',icon:'🗺️'},
+  {path:'/vacations',label:'חופשות',icon:'✈️'},
+  {path:'/dashboard',label:'דאשבורד',icon:'📊'},
+  {path:'/settings',label:'הגדרות',icon:'⚙️'},
+];
+
+function Nav({route, setRoute}) {
+  return (
+    <nav className="nav">
+      <div className="nav-brand">
+        <span className="nav-brand-icon">🌴</span>
+        <span className="nav-brand-text">מנהל חופשות</span>
+      </div>
+      <ul className="nav-links">
+        {ROUTES.map(r=>(
+          <li key={r.path}>
+            <div className={`nav-link${route===r.path?' active':''}`} onClick={()=>setRoute(r.path)}>
+              <span>{r.icon}</span><span>{r.label}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+// ── Calendar ───────────────────────────────────────────────────────────────
+function buildDayMap(vacations) {
+  const m = {};
+  for (const v of vacations) {
+    for (const d of dateRange(v.startDate, v.endDate)) {
+      if (!m[d]) m[d] = {types:new Set(), vacs:[]};
+      m[d].types.add(v.type);
+      m[d].vacs.push(v);
+    }
+  }
+  return m;
+}
+
+function isInRange(d, a, b) {
+  if (!a || !b) return false;
+  const lo=a<b?a:b, hi=a<b?b:a;
+  return d>=lo && d<=hi;
+}
+
+function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover}) {
+  const first = new Date(year,month,1);
+  const days = new Date(year,month+1,0).getDate();
+  const startDow = first.getDay();
+  const today = new Date().toISOString().slice(0,10);
+  const cells = [...Array(startDow).fill(null), ...Array.from({length:days},(_,i)=>i+1)];
+  return (
+    <div className="month">
+      <div className="month-title">{HEB_MONTHS[month]}</div>
+      <div className="dow-row">{HEB_DAYS.map(d=><span key={d} className="dow">{d}</span>)}</div>
+      <div className="days-grid">
+        {cells.map((day,i)=>{
+          if(!day) return <span key={`_${i}`}/>;
+          const ds=`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          const info=dayMap[ds];
+          const style=info?getDayStyle(info.types):{};
+          const hasColor=Object.keys(style).length>0;
+          const inSel=isInRange(ds,selStart,hoverDate);
+          const isStart=ds===selStart;
+          const isToday=ds===today;
+          return (
+            <span key={day}
+              className={`day${hasColor?' colored':''}${inSel&&!isStart?' in-sel':''}${isStart?' sel-start':''}${isToday?' today':''}`}
+              style={style}
+              onClick={()=>onDayClick(ds)}
+              onMouseEnter={()=>onDayHover(ds)}
+              title={info?info.vacs.map(v=>v.name).join(', '):''}
+            >{day}</span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AddVacModal({start, end, cats, onClose, onSave}) {
+  const lo=start<end?start:end, hi=start<end?end:start;
+  const [name,setName]=useState('');
+  const [type,setType]=useState('planned');
+  const [cc,setCc]=useState('');
+  function save(){
+    const cn=COUNTRIES.find(c=>c.code===cc);
+    onSave({name:name.trim()||TYPE_LABELS[type],type,countryCode:type==='school'?'':cc,countryName:type==='school'?'':(cn?.name||''),startDate:lo,endDate:hi});
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>הוספת אירוע</h2>
+        <div className="modal-dates">{fmtDate(lo)} — {fmtDate(hi)}</div>
+        <div className="fg">
+          <label>סוג</label>
+          <div className="type-btns">
+            {Object.entries(TYPE_LABELS).map(([k,v])=>(
+              <button key={k} className={`type-btn${type===k?' active':''}`}
+                style={{'--tc':COLORS[k]}} onClick={()=>setType(k)}>{v}</button>
+            ))}
+          </div>
+        </div>
+        <div className="fg">
+          <label>שם {type==='school'?'(אופציונלי)':''}</label>
+          <input className="input" value={name} onChange={e=>setName(e.target.value)}
+            placeholder={type==='school'?'חופשת בית ספר':'שם החופשה'} autoFocus/>
+        </div>
+        {type!=='school'&&(
+          <div className="fg">
+            <label>מדינה</label>
+            <select className="input" value={cc} onChange={e=>setCc(e.target.value)}>
+              <option value="">בחר מדינה...</option>
+              {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=>(
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={save}>שמור</button>
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarPage() {
+  const {state,dispatch}=useStore();
+  const {year,vacations}=state;
+  const [selStart,setSelStart]=useState(null);
+  const [hoverDate,setHoverDate]=useState(null);
+  const [pendingEnd,setPendingEnd]=useState(null);
+  const dayMap=useMemo(()=>buildDayMap(vacations),[vacations]);
+
+  function handleDayClick(ds) {
+    if(!selStart){setSelStart(ds);setHoverDate(ds);}
+    else{setPendingEnd(ds);}
+  }
+  function handleSave(vac){
+    dispatch({t:'ADD_VAC',v:vac});
+    setSelStart(null);setPendingEnd(null);setHoverDate(null);
+  }
+  function handleClose(){setSelStart(null);setPendingEnd(null);setHoverDate(null);}
+  const lo=selStart&&hoverDate?(selStart<hoverDate?selStart:hoverDate):null;
+  const hi=selStart&&hoverDate?(selStart<hoverDate?hoverDate:selStart):null;
+
+  const [zoom, setZoom] = useState(100);
+  // סדר חודשים: כל רבעון בעמודה (ינו/פבר/מרץ, אפר/מאי/יוני, ...)
+  const MONTH_ORDER = [0,3,6,9, 1,4,7,10, 2,5,8,11];
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div className="year-nav">
+          <button className="btn btn-icon" onClick={()=>dispatch({t:'SET_YEAR',year:year-1})}>›</button>
+          <h1 className="page-title">{year}</h1>
+          <button className="btn btn-icon" onClick={()=>dispatch({t:'SET_YEAR',year:year+1})}>‹</button>
+        </div>
+        <div className="legend">
+          {Object.entries(COLORS).map(([k,c])=>(
+            <span key={k} className="legend-item">
+              <span className="legend-dot" style={{background:c}}/>
+              {TYPE_LABELS[k]}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="cal-zoom-bar">
+        <span style={{fontSize:13,color:'#64748B',whiteSpace:'nowrap'}}>גודל תצוגה</span>
+        <button className="btn btn-icon btn-sm" onClick={()=>setZoom(z=>Math.max(50,z-10))}>−</button>
+        <input type="range" min="50" max="150" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/>
+        <button className="btn btn-icon btn-sm" onClick={()=>setZoom(z=>Math.min(150,z+10))}>+</button>
+        <span style={{fontSize:12,color:'#94A3B8',width:36}}>{zoom}%</span>
+        <button className="btn btn-secondary btn-sm" onClick={()=>setZoom(100)}>איפוס</button>
+      </div>
+      {selStart&&!pendingEnd&&(
+        <div className="sel-hint">
+          לחץ על תאריך סיום
+          {lo&&hi&&lo!==hi&&` (${fmtDate(lo)} — ${fmtDate(hi)})`}
+        </div>
+      )}
+      <div style={{transformOrigin:'top right',transform:`scale(${zoom/100})`,transition:'transform .2s',marginBottom:`calc((${zoom} - 100) * 3px)`}}>
+      <div className="cal-grid">
+        {MONTH_ORDER.map(m=>(
+          <MonthGrid key={m} year={year} month={m} dayMap={dayMap}
+            selStart={selStart} hoverDate={hoverDate}
+            onDayClick={handleDayClick} onDayHover={ds=>selStart&&!pendingEnd&&setHoverDate(ds)}/>
+        ))}
+      </div>
+      </div>
+      {pendingEnd&&selStart&&(
+        <AddVacModal start={selStart} end={pendingEnd} cats={state.cats} onClose={handleClose} onSave={handleSave}/>
+      )}
+    </div>
+  );
+}
+
+// ── World Map ──────────────────────────────────────────────────────────────
+function WorldMapPage() {
+  const {state}=useStore();
+  const svgRef=useRef(null);
+  const gRef=useRef(null);
+  const zoomRef=useRef(null);
+  const [tooltip,setTooltip]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState(null);
+  const [zoomLevel,setZoomLevel]=useState(1);
+
+  const visitedNums=useMemo(()=>{
+    const s=new Set();
+    for(const v of state.vacations) if(v.type==='paid'&&v.countryCode){
+      const c=COUNTRIES.find(x=>x.code===v.countryCode);
+      if(c) s.add(c.num);
+    }
+    return s;
+  },[state.vacations]);
+
+  useEffect(()=>{
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+      .then(r=>r.json())
+      .then(world=>{
+        const countries=topojson.feature(world,world.objects.countries);
+        const proj=d3.geoNaturalEarth1().fitSize([860,480],countries);
+        const pathGen=d3.geoPath(proj);
+        const svg=d3.select(svgRef.current);
+        svg.selectAll('*').remove();
+
+        // group for zoom/pan
+        const g=svg.append('g');
+        gRef.current=g;
+
+        g.selectAll('path')
+          .data(countries.features)
+          .join('path')
+          .attr('d',pathGen)
+          .attr('fill',d=>visitedNums.has(String(d.id))?'#10B981':'#D1D5DB')
+          .attr('stroke','#fff')
+          .attr('stroke-width',0.3)
+          .style('cursor','pointer')
+          .on('mouseover',function(event,d){
+            const c=numToCountry[String(d.id)];
+            if(c){
+              setTooltip({name:c.name,visited:visitedNums.has(String(d.id)),x:event.clientX,y:event.clientY});
+              d3.select(this).attr('fill',visitedNums.has(String(d.id))?'#059669':'#9CA3AF');
+            }
+          })
+          .on('mousemove',function(event){
+            setTooltip(t=>t?{...t,x:event.clientX,y:event.clientY}:null);
+          })
+          .on('mouseleave',function(event,d){
+            setTooltip(null);
+            d3.select(this).attr('fill',visitedNums.has(String(d.id))?'#10B981':'#D1D5DB');
+          });
+
+        // zoom behavior
+        const zoom=d3.zoom()
+          .scaleExtent([1,12])
+          .on('zoom',(event)=>{
+            g.attr('transform',event.transform);
+            // thinner strokes when zoomed in
+            g.selectAll('path').attr('stroke-width',0.3/event.transform.k);
+            setZoomLevel(Math.round(event.transform.k*10)/10);
+          });
+        zoomRef.current=zoom;
+        svg.call(zoom);
+        svg.on('dblclick.zoom',null); // disable double-click zoom (we handle it)
+
+        setLoading(false);
+      })
+      .catch(()=>{setError('לא ניתן לטעון את המפה. אנא ודא שיש חיבור לאינטרנט.');setLoading(false);});
+  },[visitedNums]);
+
+  function doZoom(factor){
+    if(!svgRef.current||!zoomRef.current) return;
+    d3.select(svgRef.current).transition().duration(300).call(zoomRef.current.scaleBy,factor);
+  }
+  function resetZoom(){
+    if(!svgRef.current||!zoomRef.current) return;
+    d3.select(svgRef.current).transition().duration(400).call(zoomRef.current.transform,d3.zoomIdentity);
+  }
+
+  const visitedList=useMemo(()=>
+    [...visitedNums].map(n=>numToCountry[n]).filter(Boolean),
+  [visitedNums]);
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1 className="page-title">מפת העולם שלנו</h1>
+        <div className="map-stats">
+          <span className="map-badge">🌍 {visitedNums.size} מדינות בוקרו</span>
+        </div>
+      </div>
+      <div className="map-wrap" style={{position:'relative'}}>
+        {loading&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#64748B'}}>⏳ טוען מפה...</div>}
+        {error&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#EF4444'}}>{error}</div>}
+        <svg ref={svgRef} viewBox="0 0 860 480" style={{width:'100%',height:'100%',display:loading||error?'none':'block',cursor:'grab'}}/>
+        {/* Zoom controls */}
+        {!loading&&!error&&(
+          <div style={{position:'absolute',bottom:16,left:16,display:'flex',flexDirection:'column',gap:6,zIndex:10}}>
+            <button className="btn btn-secondary" style={{width:36,height:36,padding:0,fontSize:20,fontWeight:700,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 6px rgba(0,0,0,.15)'}} onClick={()=>doZoom(1.6)} title="הגדל">+</button>
+            <div style={{textAlign:'center',fontSize:11,color:'#64748B',fontWeight:600,background:'#fff',borderRadius:6,padding:'2px 0',boxShadow:'0 1px 3px rgba(0,0,0,.1)'}}>{zoomLevel}×</div>
+            <button className="btn btn-secondary" style={{width:36,height:36,padding:0,fontSize:24,fontWeight:700,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 6px rgba(0,0,0,.15)'}} onClick={()=>doZoom(0.625)} title="הקטן">−</button>
+            <button className="btn btn-secondary" style={{width:36,height:36,padding:0,fontSize:13,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 6px rgba(0,0,0,.15)'}} onClick={resetZoom} title="איפוס">⌂</button>
+          </div>
+        )}
+        {tooltip&&(
+          <div className="map-tooltip" style={{top:tooltip.y-10,left:tooltip.x+10}}>
+            {tooltip.name}
+            {tooltip.visited&&<span style={{color:'#34D399',fontWeight:700}}> ✓ בוקרה</span>}
+          </div>
+        )}
+      </div>
+      <div style={{marginTop:8,fontSize:12,color:'#94A3B8',textAlign:'center'}}>גרור להזזה • גלגל העכבר / כפתורי + − להגדלה</div>
+      {visitedList.length>0&&(
+        <div style={{marginTop:16}}>
+          <h3 style={{marginBottom:12,fontWeight:700,fontSize:16}}>מדינות שבוקרו</h3>
+          <div className="map-visited">
+            {visitedList.map(c=><span key={c.code} className="vtag">{c.name}</span>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Expenses ───────────────────────────────────────────────────────────────
+function ExpRow({exp,cats,onUpdate,onDelete}) {
+  const [ed,setEd]=useState(false);
+  const [f,setF]=useState({...exp});
+  function save(){
+    const r=f.currency==='ILS'?1:parseFloat(f.exchangeRate||1);
+    onUpdate({...f,exchangeRate:r,amountILS:parseFloat(f.amount||0)*r});
+    setEd(false);
+  }
+  const ils=ed?(f.currency==='ILS'?parseFloat(f.amount||0):parseFloat(f.amount||0)*parseFloat(f.exchangeRate||1)):exp.amountILS||0;
+  if(ed) return (
+    <tr>
+      <td><select className="input input-sm" value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{cats.map(c=><option key={c}>{c}</option>)}</select></td>
+      <td><input className="input input-sm" type="number" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})} style={{width:80}}/></td>
+      <td><select className="input input-sm" value={f.currency} onChange={e=>setF({...f,currency:e.target.value})}>{CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.code}</option>)}</select></td>
+      <td>{f.currency!=='ILS'&&<input className="input input-sm" type="number" step="0.01" value={f.exchangeRate} onChange={e=>setF({...f,exchangeRate:e.target.value})} style={{width:70}} placeholder="שער"/>}</td>
+      <td className="ils-cell">{ils.toFixed(2)} ₪</td>
+      <td><input className="input input-sm" value={f.description} onChange={e=>setF({...f,description:e.target.value})} style={{width:120}}/></td>
+      <td><button className="btn btn-primary btn-xs" onClick={save}>✓</button> <button className="btn btn-secondary btn-xs" onClick={()=>setEd(false)}>✕</button></td>
+    </tr>
+  );
+  return (
+    <tr>
+      <td>{exp.category}</td>
+      <td>{exp.amount} {exp.currency}</td>
+      <td>{exp.currency==='ILS'?'—':`× ${exp.exchangeRate}`}</td>
+      <td>{exp.currency}</td>
+      <td className="ils-cell">{(exp.amountILS||0).toFixed(2)} ₪</td>
+      <td>{exp.description}</td>
+      <td>
+        <button className="btn btn-icon btn-xs" onClick={()=>setEd(true)}>✏️</button>
+        <button className="btn btn-icon btn-xs" onClick={onDelete}>🗑️</button>
+      </td>
+    </tr>
+  );
+}
+
+function AddExpRow({cats,onAdd}) {
+  const [f,setF]=useState({category:cats[0]||'',amount:'',currency:'USD',exchangeRate:'',description:''});
+  function add(){
+    if(!f.amount) return;
+    const r=f.currency==='ILS'?1:parseFloat(f.exchangeRate||1);
+    onAdd({...f,exchangeRate:r,amountILS:parseFloat(f.amount)*r});
+    setF({...f,amount:'',exchangeRate:'',description:''});
+  }
+  return (
+    <tr style={{background:'#F8FAFC'}}>
+      <td><select className="input input-sm" value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{cats.map(c=><option key={c}>{c}</option>)}</select></td>
+      <td><input className="input input-sm" type="number" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})} style={{width:80}} placeholder="סכום"/></td>
+      <td><select className="input input-sm" value={f.currency} onChange={e=>setF({...f,currency:e.target.value})}>{CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.code}</option>)}</select></td>
+      <td>{f.currency!=='ILS'&&<input className="input input-sm" type="number" step="0.01" value={f.exchangeRate} onChange={e=>setF({...f,exchangeRate:e.target.value})} style={{width:70}} placeholder="שער ל-₪"/>}</td>
+      <td className="ils-cell">{f.amount?(f.currency==='ILS'?parseFloat(f.amount).toFixed(2):(parseFloat(f.amount)*parseFloat(f.exchangeRate||1)).toFixed(2)):''}{f.amount?' ₪':''}</td>
+      <td><input className="input input-sm" value={f.description} onChange={e=>setF({...f,description:e.target.value})} style={{width:120}} placeholder="תיאור"/></td>
+      <td><button className="btn btn-primary btn-sm" onClick={add}>+ הוסף</button></td>
+    </tr>
+  );
+}
+
+function VacCard({v,cats,dispatch}) {
+  const [open,setOpen]=useState(false);
+  const [ed,setEd]=useState(false);
+  const [ef,setEf]=useState({name:v.name,type:v.type,countryCode:v.countryCode,startDate:v.startDate,endDate:v.endDate});
+  const total=v.expenses.reduce((s,e)=>s+(e.amountILS||0),0);
+  const days=Math.round((new Date(v.endDate)-new Date(v.startDate))/(1000*60*60*24))+1;
+  function saveEdit(){
+    const cn=COUNTRIES.find(c=>c.code===ef.countryCode);
+    const start=ef.startDate<=ef.endDate?ef.startDate:ef.endDate;
+    const end=ef.startDate<=ef.endDate?ef.endDate:ef.startDate;
+    dispatch({t:'UPD_VAC',id:v.id,u:{...ef,startDate:start,endDate:end,countryName:cn?.name||''}});
+    setEd(false);
+  }
+  return (
+    <div className="vcard" style={{borderRightColor:COLORS[v.type]}}>
+      <div className="vcard-hdr" onClick={()=>setOpen(!open)}>
+        <div className="vinfo">
+          <div className="vtop">
+            {ed?(
+              <div className="edit-form" onClick={e=>e.stopPropagation()}>
+                <input className="input input-sm" value={ef.name} onChange={e=>setEf({...ef,name:e.target.value})}/>
+                <select className="input input-sm" value={ef.type} onChange={e=>setEf({...ef,type:e.target.value})}>
+                  {Object.entries(TYPE_LABELS).map(([k,lbl])=><option key={k} value={k}>{lbl}</option>)}
+                </select>
+                {ef.type!=='school'&&(
+                  <select className="input input-sm" value={ef.countryCode||''} onChange={e=>setEf({...ef,countryCode:e.target.value})}>
+                    <option value="">מדינה...</option>
+                    {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=><option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select>
+                )}
+                <input className="input input-sm" type="date" value={ef.startDate} onChange={e=>setEf({...ef,startDate:e.target.value})} title="תאריך התחלה"/>
+                <input className="input input-sm" type="date" value={ef.endDate} onChange={e=>setEf({...ef,endDate:e.target.value})} title="תאריך סיום"/>
+                <button className="btn btn-primary btn-sm" onClick={saveEdit}>שמור</button>
+                <button className="btn btn-secondary btn-sm" onClick={()=>setEd(false)}>ביטול</button>
+              </div>
+            ):(
+              <>
+                <span className="vname">{v.name}</span>
+                <span className="type-badge" style={{background:COLORS[v.type]}}>{TYPE_LABELS[v.type]}</span>
+                {v.countryName&&<span className="vcountry">🌍 {v.countryName}</span>}
+              </>
+            )}
+          </div>
+          <div className="vdates">{fmtDate(v.startDate)} — {fmtDate(v.endDate)}</div>
+        </div>
+        <div className="vactions" onClick={e=>e.stopPropagation()}>
+          <span className="total-badge" style={{background:'#EFF6FF',color:'#1D4ED8',border:'1px solid #BFDBFE'}}>{days} ימים</span>
+          {total>0&&<span className="total-badge">{numFmt(total)} ₪</span>}
+          {v.type==='planned'&&<button className="btn btn-success btn-sm" onClick={()=>dispatch({t:'UPD_VAC',id:v.id,u:{type:'paid'}})}>✓ שולם</button>}
+          <button className="btn btn-icon btn-sm" onClick={()=>{setEd(true);setOpen(true);}}>✏️</button>
+          <button className="btn btn-danger btn-sm" onClick={()=>{if(confirm('למחוק חופשה זו?')) dispatch({t:'DEL_VAC',id:v.id})}}>🗑️</button>
+          <span style={{color:'#94A3B8',fontSize:11}}>{open?'▲':'▼'}</span>
+        </div>
+      </div>
+      {open&&(
+        <div className="exp-wrap">
+          <div className="exp-title">הוצאות</div>
+          <div className="tbl-wrap">
+            <table>
+              <thead><tr><th>קטגוריה</th><th>סכום</th><th>שער</th><th>מטבע</th><th>בשקלים</th><th>תיאור</th><th></th></tr></thead>
+              <tbody>
+                {v.expenses.map(e=>(
+                  <ExpRow key={e.id} exp={e} cats={cats}
+                    onUpdate={u=>dispatch({t:'UPD_EXP',vid:v.id,eid:e.id,u})}
+                    onDelete={()=>dispatch({t:'DEL_EXP',vid:v.id,eid:e.id})}/>
+                ))}
+                <AddExpRow cats={cats} onAdd={e=>dispatch({t:'ADD_EXP',vid:v.id,e})}/>
+              </tbody>
+            </table>
+          </div>
+          {total>0&&<div className="exp-total">סה"כ: <strong>{total.toFixed(2)} ₪</strong></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddVacManualModal({onClose,onSave}) {
+  const [f,setF]=useState({name:'',type:'planned',countryCode:'',startDate:'',endDate:''});
+  function save(){
+    if(!f.startDate||!f.endDate) return;
+    const cn=COUNTRIES.find(c=>c.code===f.countryCode);
+    onSave({...f,name:f.name||TYPE_LABELS[f.type],countryName:cn?.name||''});
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>הוספת חופשה</h2>
+        <div className="fg"><label>סוג</label>
+          <div className="type-btns">{Object.entries(TYPE_LABELS).map(([k,lbl])=>(
+            <button key={k} className={`type-btn${f.type===k?' active':''}`} style={{'--tc':COLORS[k]}} onClick={()=>setF({...f,type:k})}>{lbl}</button>
+          ))}</div>
+        </div>
+        <div className="fg"><label>שם</label>
+          <input className="input" value={f.name} onChange={e=>setF({...f,name:e.target.value})} placeholder={TYPE_LABELS[f.type]}/>
+        </div>
+        {f.type!=='school'&&(
+          <div className="fg"><label>מדינה</label>
+            <select className="input" value={f.countryCode} onChange={e=>setF({...f,countryCode:e.target.value})}>
+              <option value="">בחר מדינה...</option>
+              {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=><option key={c.code} value={c.code}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="form-row">
+          <div className="fg"><label>תאריך התחלה</label><input className="input" type="date" value={f.startDate} onChange={e=>setF({...f,startDate:e.target.value})}/></div>
+          <div className="fg"><label>תאריך סיום</label><input className="input" type="date" value={f.endDate} onChange={e=>setF({...f,endDate:e.target.value})}/></div>
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={save}>שמור</button>
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VacationsPage() {
+  const {state,dispatch}=useStore();
+  const [filter,setFilter]=useState('all');
+  const [addModal,setAddModal]=useState(false);
+  const list=state.vacations.filter(v=>filter==='all'||v.type===filter).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1 className="page-title">חופשות</h1>
+        <button className="btn btn-primary" onClick={()=>setAddModal(true)}>+ הוסף חופשה</button>
+      </div>
+      <div className="filter-tabs">
+        {[['all','הכל'],['school','בית ספר'],['planned','מתוכננות'],['paid','משולמות'],['health','בריאות'],['closed','יומן סגור'],['work','נסיעת עבודה']].map(([v,lbl])=>(
+          <button key={v} className={`ftab${filter===v?' active':''}`} onClick={()=>setFilter(v)}>{lbl}</button>
+        ))}
+      </div>
+      <div className="vac-list">
+        {list.length===0
+          ?<div className="empty">אין חופשות להצגה. לחץ + הוסף חופשה או סמן תאריכים בלוח השנה.</div>
+          :list.map(v=><VacCard key={v.id} v={v} cats={state.cats} dispatch={dispatch}/>)
+        }
+      </div>
+      {addModal&&<AddVacManualModal onClose={()=>setAddModal(false)} onSave={vac=>{dispatch({t:'ADD_VAC',v:vac});setAddModal(false);}}/>}
+    </div>
+  );
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+function DashboardPage() {
+  const {state}=useStore();
+  const {vacations}=state;
+  const totalILS=useMemo(()=>vacations.reduce((s,v)=>s+v.expenses.reduce((ss,e)=>ss+(e.amountILS||0),0),0),[vacations]);
+  const byVac=useMemo(()=>vacations.filter(v=>v.expenses.length>0).map(v=>({name:v.name,v:v.expenses.reduce((s,e)=>s+(e.amountILS||0),0),type:v.type})).sort((a,b)=>b.v-a.v),[vacations]);
+  const byCat=useMemo(()=>{const m={};for(const v of vacations)for(const e of v.expenses)m[e.category]=(m[e.category]||0)+(e.amountILS||0);return Object.entries(m).map(([name,v])=>({name,v})).sort((a,b)=>b.v-a.v);},[vacations]);
+  const stats=useMemo(()=>{
+    const countDays=type=>vacations.filter(v=>v.type===type).reduce((s,v)=>{
+      const a=new Date(v.startDate),b=new Date(v.endDate);
+      return s+Math.round((b-a)/(1000*60*60*24))+1;
+    },0);
+    const paid=vacations.filter(v=>v.type==='paid');
+    const countries=new Set(paid.filter(v=>v.countryCode).map(v=>v.countryCode));
+    return {paid:countDays('paid'),planned:countDays('planned'),school:countDays('school'),countries:countries.size};
+  },[vacations]);
+  if(!vacations.length) return <div className="page"><h1 className="page-title">דאשבורד</h1><div className="empty">אין נתונים. הוסף חופשות והוצאות.</div></div>;
+  return (
+    <div className="page">
+      <div className="page-header"><h1 className="page-title">דאשבורד</h1></div>
+      <div className="stat-cards">
+        <div className="stat-card"><div className="stat-val">{numFmt(totalILS)} ₪</div><div className="stat-lbl">סה"כ הוצאות</div></div>
+        <div className="stat-card" style={{borderTopColor:'#10B981'}}><div className="stat-val">{stats.paid}</div><div className="stat-lbl">משולמות</div></div>
+        <div className="stat-card" style={{borderTopColor:'#FCD34D'}}><div className="stat-val">{stats.planned}</div><div className="stat-lbl">מתוכננות</div></div>
+        <div className="stat-card" style={{borderTopColor:'#3B82F6'}}><div className="stat-val">{stats.school}</div><div className="stat-lbl">בית ספר</div></div>
+        <div className="stat-card"><div className="stat-val">🌍 {stats.countries}</div><div className="stat-lbl">מדינות</div></div>
+      </div>
+      <div className="charts-grid">
+        {byVac.length>0&&(
+          <div className="chart-card">
+            <div className="chart-title">עלות לפי חופשה (₪)</div>
+            <BarChart data={byVac} colorFn={d=>COLORS[d.type]||'#6B7280'}/>
+          </div>
+        )}
+        {byCat.length>0&&(
+          <div className="chart-card">
+            <div className="chart-title">פירוט לפי קטגוריה</div>
+            <PieChart data={byCat}/>
+            <div className="cat-list">
+              {byCat.map((c,i)=>(
+                <div key={c.name} className="cat-row">
+                  <span className="cat-dot" style={{background:PIE_COLS[i%PIE_COLS.length]}}/>
+                  <span style={{flex:1}}>{c.name}</span>
+                  <span style={{fontWeight:700}}>{numFmt(c.v)} ₪</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      {byVac.length>0&&(
+        <div className="chart-card">
+          <div className="chart-title">פירוט מלא</div>
+          <div className="tbl-wrap">
+            <table>
+              <thead><tr><th>חופשה</th><th>סטטוס</th><th>מדינה</th><th>תאריכים</th><th>עלות</th></tr></thead>
+              <tbody>
+                {byVac.map((d,i)=>{
+                  const v=vacations.find(x=>x.name===d.name);
+                  return <tr key={i}>
+                    <td>{d.name}</td>
+                    <td><span className="type-badge" style={{background:COLORS[d.type]}}>{TYPE_LABELS[d.type]}</span></td>
+                    <td>{v?.countryName||'—'}</td>
+                    <td style={{fontSize:12}}>{v?`${v.startDate} — ${v.endDate}`:'—'}</td>
+                    <td><strong>{numFmt(d.v)} ₪</strong></td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+function SettingsPage() {
+  const {state,dispatch}=useStore();
+  const [newN,setNewN]=useState('');
+  const [ed,setEd]=useState(null);
+  const [edV,setEdV]=useState('');
+  function add(){const n=newN.trim();if(!n)return;dispatch({t:'ADD_CAT',n});setNewN('');}
+  function ren(o){const n=edV.trim();if(!n||n===o){setEd(null);return;}dispatch({t:'REN_CAT',o,n});setEd(null);}
+  return (
+    <div className="page">
+      <div className="page-header"><h1 className="page-title">הגדרות</h1></div>
+      <div className="settings-sec">
+        <h2>קטגוריות הוצאות</h2>
+        <p className="settings-hint">ניהול קטגוריות לסיווג הוצאות חופשה</p>
+        <div className="cat-items">
+          {state.cats.map(cat=>(
+            <div key={cat} className="cat-item">
+              {ed===cat?(
+                <>
+                  <input className="input input-sm" value={edV} onChange={e=>setEdV(e.target.value)}
+                    onKeyDown={e=>{if(e.key==='Enter')ren(cat);if(e.key==='Escape')setEd(null);}} autoFocus/>
+                  <button className="btn btn-primary btn-sm" onClick={()=>ren(cat)}>שמור</button>
+                  <button className="btn btn-secondary btn-sm" onClick={()=>setEd(null)}>ביטול</button>
+                </>
+              ):(
+                <>
+                  <span className="cat-item-name">{cat}</span>
+                  <div className="cat-item-acts">
+                    <button className="btn btn-icon btn-sm" onClick={()=>{setEd(cat);setEdV(cat);}}>✏️</button>
+                    <button className="btn btn-danger btn-sm" onClick={()=>dispatch({t:'DEL_CAT',n:cat})}>🗑️</button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="add-cat-form">
+          <input className="input" value={newN} onChange={e=>setNewN(e.target.value)} onKeyDown={e=>e.key==='Enter'&&add()} placeholder="שם קטגוריה חדשה"/>
+          <button className="btn btn-primary" onClick={add}>+ הוסף</button>
+        </div>
+      </div>
+      <div className="settings-sec">
+        <h2>אודות</h2>
+        <p className="settings-hint">
+          מנהל חופשות — אפליקציית ניהול ומעקב חופשות משפחתיות.<br/>
+          כל הנתונים נשמרים ב-localStorage במכשיר זה בלבד.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────────────────
+function App() {
+  const [route,setRoute]=useState('/calendar');
+  const Page={'/calendar':CalendarPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/dashboard':DashboardPage,'/settings':SettingsPage}[route]||CalendarPage;
+  return (
+    <StoreProvider>
+      <Nav route={route} setRoute={setRoute}/>
+      <main className="main"><Page/></main>
+    </StoreProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
