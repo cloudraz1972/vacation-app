@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
 <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
   firebase.initializeApp({
@@ -21,6 +22,7 @@
     appId: "1:60329924715:web:eab3c4b056a1253480392e"
   });
   const db = firebase.firestore();
+  const auth = firebase.auth();
   const STATE_DOC = db.collection('vacation-app').doc('state');
 </script>
 <style>
@@ -150,6 +152,24 @@ tr:hover td{background:#FAFAFA}
 .add-cat-form{display:flex;gap:10px}
 .add-cat-form .input{flex:1}
 /* Empty */
+/* ── Auth ── */
+.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#EFF6FF 0%,#F0FDF4 100%)}
+.auth-card{background:#fff;border-radius:20px;padding:40px;width:380px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.auth-logo{text-align:center;font-size:48px;margin-bottom:8px}
+.auth-title{text-align:center;font-size:22px;font-weight:800;margin-bottom:4px}
+.auth-sub{text-align:center;font-size:13px;color:#64748B;margin-bottom:28px}
+.auth-fg{margin-bottom:16px}
+.auth-fg label{display:block;font-size:13px;font-weight:600;color:#64748B;margin-bottom:6px}
+.auth-btn{width:100%;padding:12px;background:#3B82F6;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;margin-top:4px}
+.auth-btn:hover{background:#2563EB}
+.auth-btn:disabled{background:#94A3B8;cursor:not-allowed}
+.auth-toggle{text-align:center;margin-top:20px;font-size:13px;color:#64748B}
+.auth-toggle span{color:#3B82F6;cursor:pointer;font-weight:600}
+.auth-toggle span:hover{text-decoration:underline}
+.auth-err{background:#FEE2E2;color:#DC2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;text-align:center}
+.auth-ok{background:#DCFCE7;color:#15803D;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;text-align:center}
+.nav-logout{margin-top:auto;padding:12px 16px;border-top:1px solid #E2E8F0}
+.nav-user{padding:0 16px 12px;font-size:11px;color:#94A3B8;word-break:break-all}
 .empty{text-align:center;padding:60px 20px;color:var(--text2);font-size:15px;background:var(--surface);border-radius:var(--r);box-shadow:var(--sh)}
 /* Edit form inline */
 .edit-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -356,7 +376,85 @@ const ROUTES = [
   {path:'/settings',label:'הגדרות',icon:'⚙️'},
 ];
 
-function Nav({route, setRoute}) {
+// ── Login / Register Screen ────────────────────────────────────────────────
+function AuthScreen() {
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+
+  const ERR_MAP = {
+    'auth/invalid-email': 'כתובת אימייל לא תקינה',
+    'auth/user-not-found': 'משתמש לא קיים',
+    'auth/wrong-password': 'סיסמה שגויה',
+    'auth/email-already-in-use': 'אימייל זה כבר רשום במערכת',
+    'auth/weak-password': 'הסיסמה חלשה מדי — לפחות 6 תווים',
+    'auth/invalid-credential': 'אימייל או סיסמה שגויים',
+    'auth/too-many-requests': 'יותר מדי ניסיונות — נסה שוב מאוחר יותר',
+  };
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setErr(''); setOk('');
+    if (mode === 'register' && password !== password2) {
+      setErr('הסיסמאות אינן תואמות'); return;
+    }
+    setLoading(true);
+    try {
+      if (mode === 'login') {
+        await auth.signInWithEmailAndPassword(email, password);
+      } else {
+        await auth.createUserWithEmailAndPassword(email, password);
+        setOk('המשתמש נוצר בהצלחה! מתחבר...');
+      }
+    } catch(e) {
+      setErr(ERR_MAP[e.code] || e.message);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="auth-screen">
+      <div className="auth-card">
+        <div className="auth-logo">🌴</div>
+        <div className="auth-title">מנהל חופשות</div>
+        <div className="auth-sub">{mode === 'login' ? 'כניסה לחשבון' : 'יצירת חשבון חדש'}</div>
+        {err && <div className="auth-err">{err}</div>}
+        {ok  && <div className="auth-ok">{ok}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="auth-fg">
+            <label>אימייל</label>
+            <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" required autoFocus/>
+          </div>
+          <div className="auth-fg">
+            <label>סיסמה</label>
+            <input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="לפחות 6 תווים" required/>
+          </div>
+          {mode === 'register' && (
+            <div className="auth-fg">
+              <label>אימות סיסמה</label>
+              <input className="input" type="password" value={password2} onChange={e=>setPassword2(e.target.value)} placeholder="הכנס סיסמה שוב" required/>
+            </div>
+          )}
+          <button className="auth-btn" type="submit" disabled={loading}>
+            {loading ? '...' : mode === 'login' ? 'כניסה' : 'צור חשבון'}
+          </button>
+        </form>
+        <div className="auth-toggle">
+          {mode === 'login'
+            ? <>אין לך חשבון? <span onClick={()=>{setMode('register');setErr('');}}>צור חשבון חדש</span></>
+            : <>יש לך כבר חשבון? <span onClick={()=>{setMode('login');setErr('');}}>כניסה</span></>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Nav({route, setRoute, user}) {
   return (
     <nav className="nav">
       <div className="nav-brand">
@@ -372,6 +470,12 @@ function Nav({route, setRoute}) {
           </li>
         ))}
       </ul>
+      <div className="nav-user">{user?.email}</div>
+      <div className="nav-logout">
+        <button className="btn btn-secondary" style={{width:'100%'}} onClick={()=>auth.signOut()}>
+          התנתק
+        </button>
+      </div>
     </nav>
   );
 }
@@ -1011,10 +1115,24 @@ function SettingsPage() {
 // ── App ────────────────────────────────────────────────────────────────────
 function App() {
   const [route,setRoute]=useState('/calendar');
+  const [user,setUser]=useState(undefined); // undefined=loading, null=not logged in
   const Page={'/calendar':CalendarPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/dashboard':DashboardPage,'/settings':SettingsPage}[route]||CalendarPage;
+
+  useEffect(()=>{
+    return auth.onAuthStateChanged(u=>setUser(u||null));
+  },[]);
+
+  if(user===undefined) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:16,color:'#64748B'}}>
+      <div style={{fontSize:40}}>🌴</div><div>טוען...</div>
+    </div>
+  );
+
+  if(user===null) return <AuthScreen/>;
+
   return (
     <StoreProvider>
-      <Nav route={route} setRoute={setRoute}/>
+      <Nav route={route} setRoute={setRoute} user={user}/>
       <main className="main"><Page/></main>
     </StoreProvider>
   );
