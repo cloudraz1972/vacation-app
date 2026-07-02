@@ -714,9 +714,10 @@ function CalendarPage() {
   function handleDayClick(ds, e) {
     if(selStart&&!pendingEnd){setPendingEnd(ds);return;}
     const info=dayMap[ds];
-    if(info&&info.vacs.length>0&&!selStart){
+    const nonSchoolVacs=info?info.vacs.filter(v=>v.type!=='school'):[];
+    if(nonSchoolVacs.length>0&&!selStart){
       const rect=e.target.getBoundingClientRect();
-      setPopup({ds,vacs:info.vacs,pos:{x:rect.left,y:rect.bottom+4}});
+      setPopup({ds,vacs:nonSchoolVacs,pos:{x:rect.left,y:rect.bottom+4}});
     } else {
       setPopup(null);
       if(!selStart){setSelStart(ds);setHoverDate(ds);}
