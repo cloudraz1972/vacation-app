@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>מנהל חופשות 🌴</title>
+<title>מנהל חופשות</title>
+<link rel="icon" type="image/png" href="icon.png"/>
+<link rel="apple-touch-icon" href="icon.png"/>
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -444,7 +446,7 @@ function AuthScreen() {
   return (
     <div className="auth-screen">
       <div className="auth-card">
-        <div className="auth-logo">🌴</div>
+        <div className="auth-logo"><img src="icon.png" style={{width:80,height:80,objectFit:'contain'}}/></div>
         <div className="auth-title">מנהל חופשות</div>
         <div className="auth-sub">{mode === 'login' ? 'כניסה לחשבון' : 'יצירת חשבון חדש'}</div>
         {err && <div className="auth-err">{err}</div>}
@@ -490,7 +492,7 @@ function Nav({route, setRoute, user, open, setOpen}) {
       {isMobile && <div className={`nav-overlay${open?' show':''}`} onClick={()=>setOpen(false)}/>}
       <nav className={`nav${open?(isMobile?' open':''): (isMobile?'':' collapsed')}`}>
         <div className="nav-brand">
-          <span className="nav-brand-icon">🌴</span>
+          <img src="icon.png" style={{width:28,height:28,objectFit:'contain'}}/>
           <span className="nav-brand-text">מנהל חופשות</span>
         </div>
         <ul className="nav-links">
