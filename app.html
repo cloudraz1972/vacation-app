@@ -639,7 +639,10 @@ function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd}) {
       {vacs.map(v=>(
         <div key={v.id} className="day-popup-item">
           <span className="day-popup-dot" style={{background:COLORS[v.type]}}/>
-          <span className="day-popup-name">{v.name}</span>
+          <div style={{flex:1}}>
+            <div className="day-popup-name">{v.name}</div>
+            <div style={{fontSize:11,color:'var(--text2)'}}>{fmtDate(v.startDate)} — {fmtDate(v.endDate)}</div>
+          </div>
           <div className="day-popup-actions">
             <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>onEdit(v)}>✏️</button>
             <button className="btn btn-icon btn-sm" title="מחק" onClick={()=>onDelete(v)}>🗑️</button>
