@@ -85,6 +85,14 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .year-nav .btn-icon{font-size:22px;padding:4px 10px;color:var(--blue)}
 /* Selection hint */
 .sel-hint{background:#EFF6FF;border:1px dashed var(--blue);color:var(--blue);padding:8px 16px;border-radius:8px;margin-bottom:16px;font-size:13px}
+.day-popup{position:fixed;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shm);z-index:500;min-width:220px;max-width:300px;padding:12px;direction:rtl}
+.day-popup-title{font-weight:700;font-size:13px;color:var(--text2);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.day-popup-item{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:6px}
+.day-popup-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.day-popup-name{flex:1;font-size:13px;font-weight:500}
+.day-popup-actions{display:flex;gap:4px;flex-shrink:0}
+.day-popup-add{width:100%;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);text-align:center;color:var(--blue);font-size:13px;cursor:pointer;font-weight:500}
+.day-popup-add:hover{text-decoration:underline}
 /* Calendar */
 .cal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .cal-zoom-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
@@ -548,7 +556,7 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover})
             <span key={day}
               className={`day${hasColor?' colored':''}${inSel&&!isStart?' in-sel':''}${isStart?' sel-start':''}${isToday?' today':''}`}
               style={style}
-              onClick={()=>onDayClick(ds)}
+              onClick={e=>onDayClick(ds,e)}
               onMouseEnter={()=>onDayHover(ds)}
               title={info?info.vacs.map(v=>v.name).join(', '):''}
             >{day}</span>
@@ -615,28 +623,120 @@ function AddVacModal({start, end, cats, onClose, onSave}) {
   );
 }
 
+function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd}) {
+  useEffect(()=>{
+    function handler(e){if(!e.target.closest('.day-popup'))onClose();}
+    document.addEventListener('mousedown',handler);
+    return()=>document.removeEventListener('mousedown',handler);
+  },[]);
+  const style={top:pos.y,left:pos.x};
+  // adjust if too close to edges
+  if(pos.x+240>window.innerWidth) style.left=pos.x-240;
+  if(pos.y+200>window.innerHeight) style.top=pos.y-200;
+  return (
+    <div className="day-popup" style={style}>
+      <div className="day-popup-title">{fmtDate(ds)}</div>
+      {vacs.map(v=>(
+        <div key={v.id} className="day-popup-item">
+          <span className="day-popup-dot" style={{background:COLORS[v.type]}}/>
+          <span className="day-popup-name">{v.name}</span>
+          <div className="day-popup-actions">
+            <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>onEdit(v)}>✏️</button>
+            <button className="btn btn-icon btn-sm" title="מחק" onClick={()=>onDelete(v)}>🗑️</button>
+          </div>
+        </div>
+      ))}
+      <div className="day-popup-add" onClick={onAdd}>+ הוסף אירוע ביום זה</div>
+    </div>
+  );
+}
+
+function EditVacFromCalModal({v, onClose, onSave}) {
+  const [f,setF]=useState({name:v.name,type:v.type,countryCode:v.countryCode||'',startDate:v.startDate,endDate:v.endDate,composition:v.composition||''});
+  function save(){
+    const cn=COUNTRIES.find(c=>c.code===f.countryCode);
+    const start=f.startDate<=f.endDate?f.startDate:f.endDate;
+    const end=f.startDate<=f.endDate?f.endDate:f.startDate;
+    onSave({...f,startDate:start,endDate:end,countryName:cn?.name||''});
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>עריכת אירוע</h2>
+        <div className="fg"><label>סוג</label>
+          <div className="type-btns">{Object.entries(TYPE_LABELS).map(([k,lbl])=>(
+            <button key={k} className={`type-btn${f.type===k?' active':''}`} style={{'--tc':COLORS[k]}} onClick={()=>setF({...f,type:k})}>{lbl}</button>
+          ))}</div>
+        </div>
+        <div className="fg"><label>שם</label>
+          <input className="input" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+        </div>
+        {f.type!=='school'&&(
+          <div className="fg"><label>מדינה</label>
+            <select className="input" value={f.countryCode} onChange={e=>setF({...f,countryCode:e.target.value})}>
+              <option value="">בחר מדינה...</option>
+              {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=><option key={c.code} value={c.code}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="form-row">
+          <div className="fg"><label>תאריך התחלה</label><input className="input" type="date" value={f.startDate} onChange={e=>setF({...f,startDate:e.target.value})}/></div>
+          <div className="fg"><label>תאריך סיום</label><input className="input" type="date" value={f.endDate} onChange={e=>setF({...f,endDate:e.target.value})}/></div>
+        </div>
+        <div className="fg"><label>הרכב</label>
+          <select className="input" value={f.composition} onChange={e=>setF({...f,composition:e.target.value})}>
+            <option value="">בחר הרכב...</option>
+            {['רז','אלינור','זוגי','משפחתי'].map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={save}>שמור</button>
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CalendarPage() {
   const {state,dispatch}=useStore();
   const {year,vacations}=state;
   const [selStart,setSelStart]=useState(null);
   const [hoverDate,setHoverDate]=useState(null);
   const [pendingEnd,setPendingEnd]=useState(null);
+  const [popup,setPopup]=useState(null); // {ds, vacs, pos}
+  const [editVac,setEditVac]=useState(null);
   const dayMap=useMemo(()=>buildDayMap(vacations),[vacations]);
 
-  function handleDayClick(ds) {
-    if(!selStart){setSelStart(ds);setHoverDate(ds);}
-    else{setPendingEnd(ds);}
+  function handleDayClick(ds, e) {
+    if(selStart&&!pendingEnd){setPendingEnd(ds);return;}
+    const info=dayMap[ds];
+    if(info&&info.vacs.length>0&&!selStart){
+      const rect=e.target.getBoundingClientRect();
+      setPopup({ds,vacs:info.vacs,pos:{x:rect.left,y:rect.bottom+4}});
+    } else {
+      setPopup(null);
+      if(!selStart){setSelStart(ds);setHoverDate(ds);}
+    }
   }
   function handleSave(vac){
     dispatch({t:'ADD_VAC',v:vac});
     setSelStart(null);setPendingEnd(null);setHoverDate(null);
   }
   function handleClose(){setSelStart(null);setPendingEnd(null);setHoverDate(null);}
+  function handleDelete(v){
+    if(confirm(`למחוק את "${v.name}"?`)){dispatch({t:'DEL_VAC',id:v.id});}
+    setPopup(null);
+  }
+  function handleEdit(v){setEditVac(v);setPopup(null);}
+  function handleAddOnDay(ds){
+    setPopup(null);
+    setSelStart(ds);setHoverDate(ds);setPendingEnd(ds);
+  }
   const lo=selStart&&hoverDate?(selStart<hoverDate?selStart:hoverDate):null;
   const hi=selStart&&hoverDate?(selStart<hoverDate?hoverDate:selStart):null;
 
   const [zoom, setZoom] = useState(100);
-  // סדר חודשים: כל רבעון בעמודה (ינו/פבר/מרץ, אפר/מאי/יוני, ...)
   const MONTH_ORDER = [0,3,6,9, 1,4,7,10, 2,5,8,11];
 
   return (
@@ -679,8 +779,15 @@ function CalendarPage() {
         ))}
       </div>
       </div>
+      {popup&&<DayEventsPopup ds={popup.ds} vacs={popup.vacs} pos={popup.pos}
+        onClose={()=>setPopup(null)} onEdit={handleEdit} onDelete={handleDelete}
+        onAdd={()=>handleAddOnDay(popup.ds)}/>}
       {pendingEnd&&selStart&&(
         <AddVacModal start={selStart} end={pendingEnd} cats={state.cats} onClose={handleClose} onSave={handleSave}/>
+      )}
+      {editVac&&(
+        <EditVacFromCalModal v={editVac} onClose={()=>setEditVac(null)}
+          onSave={u=>{const cn=COUNTRIES.find(c=>c.code===u.countryCode);dispatch({t:'UPD_VAC',id:editVac.id,u:{...u,countryName:cn?.name||''}});setEditVac(null);}}/>
       )}
     </div>
   );
