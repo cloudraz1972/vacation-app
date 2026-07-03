@@ -133,6 +133,7 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .ftab:hover:not(.active){border-color:var(--blue);color:var(--blue)}
 .vac-list{display:flex;flex-direction:column;gap:12px}
 .vcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border-right:4px solid transparent;overflow:hidden}
+.vcard.local-paid{background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 9px,#F0FDF4 9px,#F0FDF4 18px)}
 .vcard-hdr{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;cursor:pointer;gap:12px}
 .vcard-hdr:hover{background:#FAFAFA}
 .vinfo{flex:1;min-width:0}
@@ -1030,7 +1031,7 @@ function VacCard({v,cats,dispatch}) {
     setEd(false);
   }
   return (
-    <div className="vcard" style={{borderRightColor:COLORS[v.type]}}>
+    <div className={`vcard${v.type==='paid'&&v.countryCode==='IL'?' local-paid':''}`} style={{borderRightColor:COLORS[v.type]}}>
       <div className="vcard-hdr" onClick={()=>setOpen(!open)}>
         <div className="vinfo">
           <div className="vtop">
@@ -1148,8 +1149,12 @@ function AddVacManualModal({onClose,onSave}) {
 function VacationsPage() {
   const {state,dispatch}=useStore();
   const [filter,setFilter]=useState('all');
+  const [yearFilter,setYearFilter]=useState('all');
   const [addModal,setAddModal]=useState(false);
-  const list=state.vacations.filter(v=>filter==='all'||v.type===filter).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const years=useMemo(()=>[...new Set(state.vacations.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a),[state.vacations]);
+  const list=state.vacations
+    .filter(v=>(filter==='all'||v.type===filter)&&(yearFilter==='all'||v.startDate.startsWith(yearFilter)))
+    .sort((a,b)=>a.startDate.localeCompare(b.startDate));
   return (
     <div className="page">
       <div className="page-header">
@@ -1157,6 +1162,10 @@ function VacationsPage() {
         <button className="btn btn-primary" onClick={()=>setAddModal(true)}>+ הוסף חופשה</button>
       </div>
       <div className="filter-tabs">
+        <button className={`ftab${yearFilter==='all'?' active':''}`} onClick={()=>setYearFilter('all')}>כל השנים</button>
+        {years.map(y=><button key={y} className={`ftab${yearFilter===y?' active':''}`} onClick={()=>setYearFilter(y)}>{y}</button>)}
+      </div>
+      <div className="filter-tabs" style={{marginTop:4}}>
         {[['all','הכל'],['school','בית ספר'],['planned','מתוכננות'],['paid','משולמות'],['health','בריאות'],['closed','יומן סגור'],['work','נסיעת עבודה']].map(([v,lbl])=>(
           <button key={v} className={`ftab${filter===v?' active':''}`} onClick={()=>setFilter(v)}>{lbl}</button>
         ))}
@@ -1176,22 +1185,38 @@ function VacationsPage() {
 function DashboardPage() {
   const {state}=useStore();
   const {vacations}=state;
-  const totalILS=useMemo(()=>vacations.reduce((s,v)=>s+v.expenses.reduce((ss,e)=>ss+(e.amountILS||0),0),0),[vacations]);
-  const byVac=useMemo(()=>vacations.filter(v=>v.expenses.length>0).map(v=>({name:v.name,v:v.expenses.reduce((s,e)=>s+(e.amountILS||0),0),type:v.type})).sort((a,b)=>b.v-a.v),[vacations]);
-  const byCat=useMemo(()=>{const m={};for(const v of vacations)for(const e of v.expenses)m[e.category]=(m[e.category]||0)+(e.amountILS||0);return Object.entries(m).map(([name,v])=>({name,v})).sort((a,b)=>b.v-a.v);},[vacations]);
+  const years=useMemo(()=>[...new Set(vacations.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a),[vacations]);
+  const [yearFilter,setYearFilter]=useState('all');
+  const filtered=useMemo(()=>yearFilter==='all'?vacations:vacations.filter(v=>v.startDate.startsWith(yearFilter)),[vacations,yearFilter]);
+  const totalILS=useMemo(()=>filtered.reduce((s,v)=>s+v.expenses.reduce((ss,e)=>ss+(e.amountILS||0),0),0),[filtered]);
+  const byVac=useMemo(()=>filtered.filter(v=>v.expenses.length>0).map(v=>({name:v.name,v:v.expenses.reduce((s,e)=>s+(e.amountILS||0),0),type:v.type})).sort((a,b)=>b.v-a.v),[filtered]);
+  const byCat=useMemo(()=>{const m={};for(const v of filtered)for(const e of v.expenses)m[e.category]=(m[e.category]||0)+(e.amountILS||0);return Object.entries(m).map(([name,v])=>({name,v})).sort((a,b)=>b.v-a.v);},[filtered]);
   const stats=useMemo(()=>{
-    const countDays=type=>vacations.filter(v=>v.type===type).reduce((s,v)=>{
+    const countDays=type=>filtered.filter(v=>v.type===type).reduce((s,v)=>{
       const a=new Date(v.startDate),b=new Date(v.endDate);
       return s+Math.round((b-a)/(1000*60*60*24))+1;
     },0);
-    const paid=vacations.filter(v=>v.type==='paid');
+    const paid=filtered.filter(v=>v.type==='paid');
     const countries=new Set(paid.filter(v=>v.countryCode).map(v=>v.countryCode));
     return {paid:countDays('paid'),planned:countDays('planned'),school:countDays('school'),countries:countries.size};
+  },[filtered]);
+  const daysByYear=useMemo(()=>{
+    const m={};
+    for(const v of vacations.filter(v=>v.type==='paid')){
+      const yr=v.startDate.slice(0,4);
+      const days=Math.round((new Date(v.endDate)-new Date(v.startDate))/(1000*60*60*24))+1;
+      m[yr]=(m[yr]||0)+days;
+    }
+    return Object.entries(m).sort((a,b)=>a[0]-b[0]).map(([name,v])=>({name,v}));
   },[vacations]);
   if(!vacations.length) return <div className="page"><h1 className="page-title">דאשבורד</h1><div className="empty">אין נתונים. הוסף חופשות והוצאות.</div></div>;
   return (
     <div className="page">
       <div className="page-header"><h1 className="page-title">דאשבורד</h1></div>
+      <div className="filter-tabs" style={{marginBottom:16}}>
+        <button className={`ftab${yearFilter==='all'?' active':''}`} onClick={()=>setYearFilter('all')}>כל השנים</button>
+        {years.map(y=><button key={y} className={`ftab${yearFilter===y?' active':''}`} onClick={()=>setYearFilter(y)}>{y}</button>)}
+      </div>
       <div className="stat-cards">
         <div className="stat-card"><div className="stat-val">{numFmt(totalILS)} ₪</div><div className="stat-lbl">סה"כ הוצאות</div></div>
         <div className="stat-card" style={{borderTopColor:'#10B981'}}><div className="stat-val">{stats.paid}</div><div className="stat-lbl">משולמות</div></div>
@@ -1222,6 +1247,25 @@ function DashboardPage() {
           </div>
         )}
       </div>
+      {daysByYear.length>0&&(
+        <div className="chart-card">
+          <div className="chart-title">ימי חופש משולמים לפי שנה</div>
+          <BarChart data={daysByYear} colorFn={()=>'#10B981'}/>
+          <div className="tbl-wrap" style={{marginTop:12}}>
+            <table>
+              <thead><tr><th>שנה</th><th>ימי חופש</th></tr></thead>
+              <tbody>
+                {[...daysByYear].reverse().map(r=>(
+                  <tr key={r.name}>
+                    <td><strong>{r.name}</strong></td>
+                    <td>{r.v} ימים</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {byVac.length>0&&(
         <div className="chart-card">
           <div className="chart-title">פירוט מלא</div>
