@@ -109,7 +109,8 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
 .day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:4px;cursor:pointer;user-select:none;transition:.1s;font-weight:500;position:relative;color:#CBD5E1}
 .day:hover{opacity:.8;outline:2px solid var(--blue);outline-offset:-1px}
-.day.today{font-weight:900;color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.day.today{font-weight:900;box-shadow:inset 0 0 0 2px #FCD34D;color:#FCD34D}
+.day.health-day{box-shadow:inset 0 0 0 2px #fff}
 .day.in-sel{background:rgba(59,130,246,.15)!important}
 .day.sel-start{background:var(--blue)!important;color:#fff!important}
 .day.colored{color:#fff}
@@ -559,7 +560,7 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover})
           const isToday=ds===today;
           return (
             <span key={day}
-              className={`day${hasColor?' colored':''}${inSel&&!isStart?' in-sel':''}${isStart?' sel-start':''}${isToday?' today':''}`}
+              className={`day${hasColor?' colored':''}${inSel&&!isStart?' in-sel':''}${isStart?' sel-start':''}${isToday?' today':''}${info&&info.types.has('health')?' health-day':''}`}
               style={style}
               onClick={e=>onDayClick(ds,e)}
               onMouseEnter={()=>onDayHover(ds)}
