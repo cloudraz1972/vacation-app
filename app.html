@@ -989,7 +989,7 @@ function AddExpRow({cats,onAdd}) {
   );
 }
 
-function downloadICS(vac, method='REQUEST') {
+function downloadICS(vac, method='PUBLISH') {
   const uid = vac.id + '@vacation-app';
   const now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15)+'Z';
   const start = vac.startDate.replace(/-/g,'');
@@ -1069,7 +1069,7 @@ function VacCard({v,cats,dispatch}) {
           <span className="total-badge" style={{background:'#EFF6FF',color:'#1D4ED8',border:'1px solid #BFDBFE'}}>{days} ימים</span>
           {total>0&&<span className="total-badge">{numFmt(total)} ₪</span>}
           {v.type==='planned'&&<button className="btn btn-success btn-sm" onClick={()=>dispatch({t:'UPD_VAC',id:v.id,u:{type:'paid'}})}>✓ שולם</button>}
-          <button className="btn btn-icon btn-sm" title="הוסף/עדכן ביומן Outlook" onClick={()=>downloadICS(v,'REQUEST')}>📅</button>
+          <button className="btn btn-icon btn-sm" title="הוסף/עדכן ביומן Outlook" onClick={()=>downloadICS(v,'PUBLISH')}>📅</button>
           <button className="btn btn-icon btn-sm" onClick={()=>{setEd(true);setOpen(true);}}>✏️</button>
           <button className="btn btn-danger btn-sm" onClick={()=>{if(confirm('למחוק חופשה זו?')){if(confirm('למחוק גם מיומן Outlook?'))downloadICS(v,'CANCEL');dispatch({t:'DEL_VAC',id:v.id});}}}> 🗑️</button>
           <span style={{color:'#94A3B8',fontSize:11}}>{open?'▲':'▼'}</span>
