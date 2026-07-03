@@ -561,7 +561,7 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover})
           const inSel=isInRange(ds,selStart,hoverDate);
           const isStart=ds===selStart;
           const isToday=ds===today;
-          const paidVac=info&&info.vacs.find(v=>v.type==='paid'&&v.countryCode);
+          const paidVac=info&&info.vacs.find(v=>(v.type==='paid'||v.type==='planned')&&v.countryCode);
           const flag=paidVac?countryFlag(paidVac.countryCode):'';
           return (
             <span key={day}
