@@ -133,7 +133,8 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .ftab:hover:not(.active){border-color:var(--blue);color:var(--blue)}
 .vac-list{display:flex;flex-direction:column;gap:12px}
 .vcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border-right:4px solid transparent;overflow:hidden}
-.vcard.local-paid{background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 9px,#F0FDF4 9px,#F0FDF4 18px)}
+.day-flag{position:absolute;bottom:1px;right:2px;font-size:9px;line-height:1;pointer-events:none}
+.day{position:relative}
 .vcard-hdr{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;cursor:pointer;gap:12px}
 .vcard-hdr:hover{background:#FAFAFA}
 .vinfo{flex:1;min-width:0}
@@ -266,6 +267,7 @@ const numToCountry = Object.fromEntries(COUNTRIES.map(c => [c.num, c]));
 const DEFAULT_CATS = ['טיסות','מלון','אוכל','אטרקציות','קניות','תחבורה','ביטוח','אחר'];
 
 function genId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+function countryFlag(code) { if(!code||code.length!==2)return ''; return String.fromCodePoint(...[...code.toUpperCase()].map(c=>0x1F1E6+c.charCodeAt(0)-65)); }
 function fmtDate(d) { if (!d) return ''; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
 function numFmt(n) { return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 
@@ -559,6 +561,8 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover})
           const inSel=isInRange(ds,selStart,hoverDate);
           const isStart=ds===selStart;
           const isToday=ds===today;
+          const paidVac=info&&info.vacs.find(v=>v.type==='paid'&&v.countryCode);
+          const flag=paidVac?countryFlag(paidVac.countryCode):'';
           return (
             <span key={day}
               className={`day${hasColor?' colored':''}${inSel&&!isStart?' in-sel':''}${isStart?' sel-start':''}${isToday?' today':''}${info&&info.types.has('health')?' health-day':''}`}
@@ -566,7 +570,7 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover})
               onClick={e=>onDayClick(ds,e)}
               onMouseEnter={()=>onDayHover(ds)}
               title={info?info.vacs.map(v=>v.name).join(', '):''}
-            >{day}</span>
+            >{day}{flag&&<span className="day-flag">{flag}</span>}</span>
           );
         })}
       </div>
@@ -1031,7 +1035,7 @@ function VacCard({v,cats,dispatch}) {
     setEd(false);
   }
   return (
-    <div className={`vcard${v.type==='paid'&&v.countryCode==='IL'?' local-paid':''}`} style={{borderRightColor:COLORS[v.type]}}>
+    <div className="vcard" style={{borderRightColor:COLORS[v.type]}}>
       <div className="vcard-hdr" onClick={()=>setOpen(!open)}>
         <div className="vinfo">
           <div className="vtop">
