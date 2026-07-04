@@ -1209,9 +1209,11 @@ function DashboardPage() {
     for(const v of vacations.filter(v=>v.type==='paid')){
       const yr=v.startDate.slice(0,4);
       const days=Math.round((new Date(v.endDate)-new Date(v.startDate))/(1000*60*60*24))+1;
-      m[yr]=(m[yr]||0)+days;
+      if(!m[yr]) m[yr]={total:0,il:0,abroad:0};
+      m[yr].total+=days;
+      if(v.countryCode==='IL') m[yr].il+=days; else m[yr].abroad+=days;
     }
-    return Object.entries(m).sort((a,b)=>a[0]-b[0]).map(([name,v])=>({name,v}));
+    return Object.entries(m).sort((a,b)=>a[0]-b[0]).map(([name,r])=>({name,v:r.total,il:r.il,abroad:r.abroad}));
   },[vacations]);
   if(!vacations.length) return <div className="page"><h1 className="page-title">דאשבורד</h1><div className="empty">אין נתונים. הוסף חופשות והוצאות.</div></div>;
   return (
@@ -1257,12 +1259,14 @@ function DashboardPage() {
           <BarChart data={daysByYear} colorFn={()=>'#10B981'}/>
           <div className="tbl-wrap" style={{marginTop:12}}>
             <table>
-              <thead><tr><th>שנה</th><th>ימי חופש</th></tr></thead>
+              <thead><tr><th>שנה</th><th>סה"כ</th><th>🇮🇱 ישראל</th><th>🌍 חול</th></tr></thead>
               <tbody>
                 {[...daysByYear].reverse().map(r=>(
                   <tr key={r.name}>
                     <td><strong>{r.name}</strong></td>
-                    <td>{r.v} ימים</td>
+                    <td>{r.v}</td>
+                    <td>{r.il}</td>
+                    <td>{r.abroad}</td>
                   </tr>
                 ))}
               </tbody>
