@@ -29,6 +29,7 @@
   const db = firebase.firestore();
   const auth = firebase.auth();
   const STATE_DOC = db.collection('vacation-app').doc('state');
+  const TRAVELERS_DOC = db.collection('vacation-app').doc('travelers');
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -132,6 +133,21 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .ftab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 .ftab:hover:not(.active){border-color:var(--blue);color:var(--blue)}
 .vac-list{display:flex;flex-direction:column;gap:12px}
+.traveler-list{display:flex;flex-direction:column;gap:14px}
+.tcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border-right:4px solid #8B5CF6;overflow:hidden}
+.tcard-hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px 12px}
+.tcard-name-he{font-size:17px;font-weight:700}
+.tcard-name-en{font-size:13px;color:var(--text2);margin-top:2px}
+.tcard-birth{font-size:12px;color:var(--text2);margin-top:4px}
+.tcard-body{padding:0 20px 16px}
+.tsec{margin-top:12px}
+.tsec-title{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.titem{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px}
+.titem:last-child{border-bottom:none}
+.titem-add{font-size:12px;color:var(--blue);cursor:pointer;margin-top:4px;display:inline-block}
+.titem-add:hover{text-decoration:underline}
+.passport-photo{color:#3B82F6;font-size:12px;text-decoration:none}
+.passport-photo:hover{text-decoration:underline}
 .vcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border-right:4px solid transparent;overflow:hidden}
 .day-flag{position:absolute;bottom:1px;right:2px;font-size:9px;line-height:1;pointer-events:none}
 .day{position:relative}
@@ -291,7 +307,7 @@ function dateRange(a, b) {
 // ── Store ──────────────────────────────────────────────────────────────────
 const Ctx = createContext(null);
 const SKEY = 'vacation-app-v2';
-const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS] };
+const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], travelers: [] };
 
 function reducer(s, a) {
   switch(a.t) {
@@ -305,7 +321,11 @@ function reducer(s, a) {
     case 'ADD_CAT': return s.cats.includes(a.n) ? s : {...s, cats:[...s.cats,a.n]};
     case 'REN_CAT': return {...s, cats:s.cats.map(c=>c===a.o?a.n:c)};
     case 'DEL_CAT': return {...s, cats:s.cats.filter(c=>c!==a.n)};
-    case 'LOAD': return {...initState,...a.s};
+    case 'LOAD': return {...initState,...a.s,travelers:s.travelers};
+    case 'LOAD_TRAVELERS': return {...s, travelers:a.travelers||[]};
+    case 'ADD_TRAVELER': return {...s, travelers:[...s.travelers,{...a.t,id:genId(),passports:[],frequentFlyer:[]}]};
+    case 'UPD_TRAVELER': return {...s, travelers:s.travelers.map(t=>t.id===a.id?{...t,...a.u}:t)};
+    case 'DEL_TRAVELER': return {...s, travelers:s.travelers.filter(t=>t.id!==a.id)};
     default: return s;
   }
 }
@@ -316,28 +336,44 @@ function StoreProvider({children}) {
   const saveTimer = useRef(null);
   const isRemoteUpdate = useRef(false);
 
+  const [travelersLoaded, setTravelersLoaded] = useState(false);
+
   // האזן לשינויים מ-Firestore (סנכרון בזמן אמת)
   useEffect(()=>{
     const unsub = STATE_DOC.onSnapshot(doc=>{
       if(doc.exists){
-        const data = doc.data();
         isRemoteUpdate.current = true;
-        dispatch({t:'LOAD', s:{...initState,...data}});
+        dispatch({t:'LOAD', s:doc.data()});
       }
       setLoaded(true);
     }, ()=>setLoaded(true));
     return unsub;
   },[]);
 
+  useEffect(()=>{
+    const unsub = TRAVELERS_DOC.onSnapshot(doc=>{
+      if(doc.exists){
+        isRemoteUpdate.current = true;
+        dispatch({t:'LOAD_TRAVELERS', travelers:doc.data().travelers||[]});
+      }
+      setTravelersLoaded(true);
+    }, ()=>setTravelersLoaded(true));
+    return unsub;
+  },[]);
+
   // שמור ל-Firestore כשהמצב משתנה (debounce 600ms)
   useEffect(()=>{
-    if(!loaded) return;
+    if(!loaded||!travelersLoaded) return;
     if(isRemoteUpdate.current){ isRemoteUpdate.current=false; return; }
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(()=>{ STATE_DOC.set(state); }, 600);
-  },[state, loaded]);
+    saveTimer.current = setTimeout(()=>{
+      const {travelers, ...mainState} = state;
+      STATE_DOC.set(mainState);
+      TRAVELERS_DOC.set({travelers});
+    }, 600);
+  },[state, loaded, travelersLoaded]);
 
-  if(!loaded) return (
+  if(!loaded||!travelersLoaded) return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:16,color:'#64748B'}}>
       <div style={{fontSize:32}}>🌴</div>
       <div>טוען נתונים...</div>
@@ -407,6 +443,7 @@ const ROUTES = [
   {path:'/map',label:'מפת עולם',icon:'🗺️'},
   {path:'/vacations',label:'חופשות',icon:'✈️'},
   {path:'/dashboard',label:'דאשבורד',icon:'📊'},
+  {path:'/travelers',label:'נוסעים',icon:'👤'},
   {path:'/settings',label:'הגדרות',icon:'⚙️'},
 ];
 
@@ -1358,12 +1395,176 @@ function SettingsPage() {
   );
 }
 
+// ── Travelers ──────────────────────────────────────────────────────────────
+function TravelerModal({traveler, onClose, onSave}) {
+  const blank = {firstNameHe:'',lastNameHe:'',firstNameEn:'',lastNameEn:'',birthDate:''};
+  const [f, setF] = useState(traveler ? {firstNameHe:traveler.firstNameHe||'',lastNameHe:traveler.lastNameHe||'',firstNameEn:traveler.firstNameEn||'',lastNameEn:traveler.lastNameEn||'',birthDate:traveler.birthDate||''} : blank);
+  function save() {
+    if(!f.firstNameHe.trim()) return;
+    onSave(f);
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>{traveler?'עריכת נוסע':'הוסף נוסע'}</h2>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div className="fg"><label>שם פרטי (עברית)</label><input className="input" value={f.firstNameHe} onChange={e=>setF({...f,firstNameHe:e.target.value})}/></div>
+          <div className="fg"><label>שם משפחה (עברית)</label><input className="input" value={f.lastNameHe} onChange={e=>setF({...f,lastNameHe:e.target.value})}/></div>
+          <div className="fg"><label>First Name (English)</label><input className="input" value={f.firstNameEn} onChange={e=>setF({...f,firstNameEn:e.target.value})} dir="ltr"/></div>
+          <div className="fg"><label>Last Name (English)</label><input className="input" value={f.lastNameEn} onChange={e=>setF({...f,lastNameEn:e.target.value})} dir="ltr"/></div>
+        </div>
+        <div className="fg"><label>תאריך לידה</label><input className="input" type="date" value={f.birthDate} onChange={e=>setF({...f,birthDate:e.target.value})}/></div>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+          <button className="btn btn-primary" onClick={save}>שמור</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PassportModal({passport, onClose, onSave}) {
+  const blank = {country:'',number:'',expiry:'',photoUrl:''};
+  const [f, setF] = useState(passport ? {...passport} : blank);
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>{passport?'עריכת דרכון':'הוסף דרכון'}</h2>
+        <div className="fg"><label>מדינה</label>
+          <select className="input" value={f.country} onChange={e=>setF({...f,country:e.target.value})}>
+            <option value="">בחר מדינה...</option>
+            {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=><option key={c.code} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="fg"><label>מספר דרכון</label><input className="input" dir="ltr" value={f.number} onChange={e=>setF({...f,number:e.target.value})}/></div>
+        <div className="fg"><label>תוקף עד</label><input className="input" type="date" value={f.expiry} onChange={e=>setF({...f,expiry:e.target.value})}/></div>
+        <div className="fg"><label>קישור לצילום דרכון (Google Drive / iCloud)</label><input className="input" dir="ltr" placeholder="https://..." value={f.photoUrl} onChange={e=>setF({...f,photoUrl:e.target.value})}/></div>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+          <button className="btn btn-primary" onClick={()=>onSave(f)}>שמור</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FFModal({ff, onClose, onSave}) {
+  const [f, setF] = useState(ff ? {...ff} : {airline:'',number:''});
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>{ff?'עריכת כרטיס נוסע מתמיד':'הוסף נוסע מתמיד'}</h2>
+        <div className="fg"><label>חברת תעופה</label><input className="input" value={f.airline} onChange={e=>setF({...f,airline:e.target.value})}/></div>
+        <div className="fg"><label>מספר נוסע</label><input className="input" dir="ltr" value={f.number} onChange={e=>setF({...f,number:e.target.value})}/></div>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+          <button className="btn btn-primary" onClick={()=>onSave(f)}>שמור</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TravelerCard({t, dispatch}) {
+  const [ppModal, setPpModal] = useState(null); // null | {mode:'add'|'edit', pp?}
+  const [ffModal, setFfModal] = useState(null);
+  const [editModal, setEditModal] = useState(false);
+
+  function savePassport(pp) {
+    const passports = ppModal.pp
+      ? (t.passports||[]).map(p=>p.id===ppModal.pp.id?{...p,...pp}:p)
+      : [...(t.passports||[]), {...pp, id:genId()}];
+    dispatch({t:'UPD_TRAVELER', id:t.id, u:{passports}});
+    setPpModal(null);
+  }
+  function delPassport(id) {
+    if(!confirm('למחוק דרכון זה?')) return;
+    dispatch({t:'UPD_TRAVELER', id:t.id, u:{passports:(t.passports||[]).filter(p=>p.id!==id)}});
+  }
+  function saveFF(ff) {
+    const frequentFlyer = ffModal.ff
+      ? (t.frequentFlyer||[]).map(f=>f.id===ffModal.ff.id?{...f,...ff}:f)
+      : [...(t.frequentFlyer||[]), {...ff, id:genId()}];
+    dispatch({t:'UPD_TRAVELER', id:t.id, u:{frequentFlyer}});
+    setFfModal(null);
+  }
+  function delFF(id) {
+    if(!confirm('למחוק כרטיס זה?')) return;
+    dispatch({t:'UPD_TRAVELER', id:t.id, u:{frequentFlyer:(t.frequentFlyer||[]).filter(f=>f.id!==id)}});
+  }
+  const age = t.birthDate ? Math.floor((new Date()-new Date(t.birthDate))/(365.25*24*3600*1000)) : null;
+
+  return (
+    <div className="tcard">
+      <div className="tcard-hdr">
+        <div>
+          <div className="tcard-name-he">👤 {t.firstNameHe} {t.lastNameHe}</div>
+          {(t.firstNameEn||t.lastNameEn) && <div className="tcard-name-en">{t.firstNameEn} {t.lastNameEn}</div>}
+          {t.birthDate && <div className="tcard-birth">🎂 {fmtDate(t.birthDate)}{age!==null?` (גיל ${age})`:''}</div>}
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>setEditModal(true)}>✏️</button>
+          <button className="btn btn-icon btn-sm" title="מחק" onClick={()=>{if(confirm('למחוק נוסע זה?'))dispatch({t:'DEL_TRAVELER',id:t.id});}}>🗑️</button>
+        </div>
+      </div>
+      <div className="tcard-body">
+        <div className="tsec">
+          <div className="tsec-title">📘 דרכונים</div>
+          {(t.passports||[]).map(pp=>(
+            <div key={pp.id} className="titem">
+              <span style={{flex:1}}>{pp.country && countryFlag(COUNTRIES.find(c=>c.name===pp.country)?.code||'')} <strong>{pp.country}</strong> | {pp.number} | תוקף: {pp.expiry?fmtDate(pp.expiry):'—'}</span>
+              {pp.photoUrl && <a href={pp.photoUrl} target="_blank" className="passport-photo">📷</a>}
+              <button className="btn btn-icon btn-sm" onClick={()=>setPpModal({mode:'edit',pp})}>✏️</button>
+              <button className="btn btn-icon btn-sm" onClick={()=>delPassport(pp.id)}>🗑️</button>
+            </div>
+          ))}
+          <span className="titem-add" onClick={()=>setPpModal({mode:'add'})}>+ הוסף דרכון</span>
+        </div>
+        <div className="tsec">
+          <div className="tsec-title">✈️ נוסע מתמיד</div>
+          {(t.frequentFlyer||[]).map(ff=>(
+            <div key={ff.id} className="titem">
+              <span style={{flex:1}}><strong>{ff.airline}</strong>: {ff.number}</span>
+              <button className="btn btn-icon btn-sm" onClick={()=>setFfModal({mode:'edit',ff})}>✏️</button>
+              <button className="btn btn-icon btn-sm" onClick={()=>delFF(ff.id)}>🗑️</button>
+            </div>
+          ))}
+          <span className="titem-add" onClick={()=>setFfModal({mode:'add'})}>+ הוסף כרטיס</span>
+        </div>
+      </div>
+      {editModal && <TravelerModal traveler={t} onClose={()=>setEditModal(false)} onSave={u=>{dispatch({t:'UPD_TRAVELER',id:t.id,u});setEditModal(false);}}/>}
+      {ppModal && <PassportModal passport={ppModal.pp} onClose={()=>setPpModal(null)} onSave={savePassport}/>}
+      {ffModal && <FFModal ff={ffModal.ff} onClose={()=>setFfModal(null)} onSave={saveFF}/>}
+    </div>
+  );
+}
+
+function TravelersPage() {
+  const {state, dispatch} = useStore();
+  const [addModal, setAddModal] = useState(false);
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1 className="page-title">נוסעים</h1>
+        <button className="btn btn-primary" onClick={()=>setAddModal(true)}>+ הוסף נוסע</button>
+      </div>
+      <div className="traveler-list">
+        {state.travelers.length===0
+          ? <div className="empty">אין נוסעים. לחץ + הוסף נוסע.</div>
+          : state.travelers.map(t=><TravelerCard key={t.id} t={t} dispatch={dispatch}/>)
+        }
+      </div>
+      {addModal && <TravelerModal onClose={()=>setAddModal(false)} onSave={t=>{dispatch({t:'ADD_TRAVELER',t});setAddModal(false);}}/>}
+    </div>
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────
 function App() {
   const [route,setRoute]=useState('/calendar');
   const [user,setUser]=useState(undefined);
   const [navOpen,setNavOpen]=useState(window.innerWidth>640);
-  const Page={'/calendar':CalendarPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/dashboard':DashboardPage,'/settings':SettingsPage}[route]||CalendarPage;
+  const Page={'/calendar':CalendarPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/dashboard':DashboardPage,'/travelers':TravelersPage,'/settings':SettingsPage}[route]||CalendarPage;
 
   useEffect(()=>{
     return auth.onAuthStateChanged(u=>setUser(u||null));
