@@ -820,12 +820,15 @@ function WorldMapPage() {
   const [zoomLevel,setZoomLevel]=useState(1);
 
   const visitedNums=useMemo(()=>{
-    const s=new Set();
-    for(const v of state.vacations) if(v.type==='paid'&&v.countryCode){
+    const paid=new Set(), work=new Set();
+    for(const v of state.vacations){
+      if(!v.countryCode) continue;
       const c=COUNTRIES.find(x=>x.code===v.countryCode);
-      if(c) s.add(c.num);
+      if(!c) continue;
+      if(v.type==='paid') paid.add(c.num);
+      else if(v.type==='work') work.add(c.num);
     }
-    return s;
+    return {paid, work};
   },[state.vacations]);
 
   useEffect(()=>{
@@ -846,15 +849,16 @@ function WorldMapPage() {
           .data(countries.features)
           .join('path')
           .attr('d',pathGen)
-          .attr('fill',d=>visitedNums.has(String(d.id))?'#10B981':'#D1D5DB')
+          .attr('fill',d=>{const id=String(d.id);return visitedNums.paid.has(id)?'#10B981':visitedNums.work.has(id)?'#3B82F6':'#D1D5DB';})
           .attr('stroke','#fff')
           .attr('stroke-width',0.3)
           .style('cursor','pointer')
           .on('mouseover',function(event,d){
-            const c=numToCountry[String(d.id)];
+            const id=String(d.id);const c=numToCountry[id];
             if(c){
-              setTooltip({name:c.name,visited:visitedNums.has(String(d.id)),x:event.clientX,y:event.clientY});
-              d3.select(this).attr('fill',visitedNums.has(String(d.id))?'#059669':'#9CA3AF');
+              const type=visitedNums.paid.has(id)?'paid':visitedNums.work.has(id)?'work':null;
+              setTooltip({name:c.name,type,x:event.clientX,y:event.clientY});
+              d3.select(this).attr('fill',visitedNums.paid.has(id)?'#059669':visitedNums.work.has(id)?'#2563EB':'#9CA3AF');
             }
           })
           .on('mousemove',function(event){
@@ -862,7 +866,8 @@ function WorldMapPage() {
           })
           .on('mouseleave',function(event,d){
             setTooltip(null);
-            d3.select(this).attr('fill',visitedNums.has(String(d.id))?'#10B981':'#D1D5DB');
+            const id=String(d.id);
+            d3.select(this).attr('fill',visitedNums.paid.has(id)?'#10B981':visitedNums.work.has(id)?'#3B82F6':'#D1D5DB');
           });
 
         // zoom behavior
@@ -901,7 +906,7 @@ function WorldMapPage() {
       <div className="page-header">
         <h1 className="page-title">מפת העולם שלנו</h1>
         <div className="map-stats">
-          <span className="map-badge">🌍 {visitedNums.size} מדינות בוקרו</span>
+          <span className="map-badge">🟢 {visitedNums.paid.size} חופשות &nbsp;🔵 {visitedNums.work.size} עבודה</span>
         </div>
       </div>
       <div className="map-wrap" style={{position:'relative'}}>
@@ -920,7 +925,8 @@ function WorldMapPage() {
         {tooltip&&(
           <div className="map-tooltip" style={{top:tooltip.y-10,left:tooltip.x+10}}>
             {tooltip.name}
-            {tooltip.visited&&<span style={{color:'#34D399',fontWeight:700}}> ✓ בוקרה</span>}
+            {tooltip.type==='paid'&&<span style={{color:'#34D399',fontWeight:700}}> ✓ חופשה</span>}
+            {tooltip.type==='work'&&<span style={{color:'#93C5FD',fontWeight:700}}> ✓ עבודה</span>}
           </div>
         )}
       </div>
@@ -1200,7 +1206,7 @@ function DashboardPage() {
       const a=new Date(v.startDate),b=new Date(v.endDate);
       return s+Math.round((b-a)/(1000*60*60*24))+1;
     },0);
-    const paid=filtered.filter(v=>v.type==='paid');
+    const paid=filtered.filter(v=>v.type==='paid'||v.type==='work');
     const countries=new Set(paid.filter(v=>v.countryCode).map(v=>v.countryCode));
     return {paid:countDays('paid'),planned:countDays('planned'),school:countDays('school'),countries:countries.size};
   },[filtered]);
