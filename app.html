@@ -338,17 +338,15 @@ function StoreProvider({children}) {
   const isRemoteUpdate = useRef(false);
 
   const [travelersLoaded, setTravelersLoaded] = useState(false);
-  // counter: כמה snapshots צפויות מ-Firestore כתגובה לשמירה שלנו
-  const pendingSnapshots = useRef(0);
+  const remoteMain = useRef(false);
+  const remoteTravelers = useRef(false);
+  const mainTimer = useRef(null);
+  const travTimer = useRef(null);
 
-  // האזן לשינויים מ-Firestore (סנכרון בזמן אמת)
+  // האזן לשינויים מ-Firestore
   useEffect(()=>{
     const unsub = STATE_DOC.onSnapshot(doc=>{
-      if(doc.exists){
-        if(pendingSnapshots.current > 0) { pendingSnapshots.current--; }
-        else { isRemoteUpdate.current = true; }
-        dispatch({t:'LOAD', s:doc.data()});
-      }
+      if(doc.exists){ remoteMain.current=true; dispatch({t:'LOAD', s:doc.data()}); }
       setLoaded(true);
     }, ()=>setLoaded(true));
     return unsub;
@@ -356,36 +354,36 @@ function StoreProvider({children}) {
 
   useEffect(()=>{
     const unsub = TRAVELERS_DOC.onSnapshot(doc=>{
-      if(doc.exists){
-        if(pendingSnapshots.current > 0) { pendingSnapshots.current--; }
-        else { isRemoteUpdate.current = true; }
-        dispatch({t:'LOAD_TRAVELERS', travelers:doc.data().travelers||[]});
-      }
+      if(doc.exists){ remoteTravelers.current=true; dispatch({t:'LOAD_TRAVELERS', travelers:doc.data().travelers||[]}); }
       setTravelersLoaded(true);
     }, ()=>setTravelersLoaded(true));
     return unsub;
   },[]);
 
-  // שמור ל-Firestore כשהמצב משתנה (debounce 600ms)
+  // שמור mainState (ללא travelers)
+  const {travelers, ...mainState} = state;
   useEffect(()=>{
-    if(!loaded||!travelersLoaded) return;
-    if(isRemoteUpdate.current){ isRemoteUpdate.current=false; return; }
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async ()=>{
-      try {
-        pendingSnapshots.current = 2; // מצפים ל-2 snapshots בחזרה
-        const {travelers, ...mainState} = state;
-        await Promise.all([
-          STATE_DOC.set(mainState),
-          TRAVELERS_DOC.set({travelers})
-        ]);
-      } catch(e) {
-        pendingSnapshots.current = 0;
-        console.error('שגיאת שמירה ל-Firestore:', e);
-        alert('שגיאה בשמירת הנתונים: ' + e.message);
-      }
+    if(!loaded) return;
+    if(remoteMain.current){ remoteMain.current=false; return; }
+    clearTimeout(mainTimer.current);
+    mainTimer.current = setTimeout(async ()=>{
+      try { await STATE_DOC.set(mainState); }
+      catch(e){ console.error('שגיאת שמירה state:', e); alert('שגיאה בשמירה: '+e.message); }
     }, 600);
-  },[state, loaded, travelersLoaded]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[JSON.stringify(mainState), loaded]);
+
+  // שמור travelers בנפרד
+  useEffect(()=>{
+    if(!travelersLoaded) return;
+    if(remoteTravelers.current){ remoteTravelers.current=false; return; }
+    clearTimeout(travTimer.current);
+    travTimer.current = setTimeout(async ()=>{
+      try { await TRAVELERS_DOC.set({travelers}); }
+      catch(e){ console.error('שגיאת שמירה travelers:', e); alert('שגיאה בשמירת נוסעים: '+e.message); }
+    }, 600);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[JSON.stringify(travelers), travelersLoaded]);
 
   if(!loaded||!travelersLoaded) return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:16,color:'#64748B'}}>
