@@ -367,10 +367,17 @@ function StoreProvider({children}) {
     if(!loaded||!travelersLoaded) return;
     if(isRemoteUpdate.current){ isRemoteUpdate.current=false; return; }
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(()=>{
-      const {travelers, ...mainState} = state;
-      STATE_DOC.set(mainState);
-      TRAVELERS_DOC.set({travelers});
+    saveTimer.current = setTimeout(async ()=>{
+      try {
+        const {travelers, ...mainState} = state;
+        await Promise.all([
+          STATE_DOC.set(mainState),
+          TRAVELERS_DOC.set({travelers})
+        ]);
+      } catch(e) {
+        console.error('שגיאת שמירה ל-Firestore:', e);
+        alert('שגיאה בשמירת הנתונים: ' + e.message);
+      }
     }, 600);
   },[state, loaded, travelersLoaded]);
 
