@@ -1406,6 +1406,10 @@ function SettingsPage() {
 
 // ── Passport Scanner ───────────────────────────────────────────────────────
 async function scanPassport(imageBase64, mediaType, apiKey) {
+  const isPdf = mediaType === 'application/pdf';
+  const contentBlock = isPdf
+    ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:imageBase64}}
+    : {type:'image', source:{type:'base64', media_type:mediaType, data:imageBase64}};
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
     headers:{
@@ -1418,8 +1422,8 @@ async function scanPassport(imageBase64, mediaType, apiKey) {
       model:'claude-haiku-4-5-20251001',
       max_tokens:1024,
       messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:mediaType,data:imageBase64}},
-        {type:'text',text:`Extract passport data from this image. Return ONLY a JSON object with these fields:
+        contentBlock,
+        {type:'text',text:`Extract passport data from this document. Return ONLY a JSON object with these fields:
 {"firstNameEn":"given names in Latin","lastNameEn":"surname in Latin","firstNameHe":"given names in Hebrew if visible else empty","lastNameHe":"surname in Hebrew if visible else empty","passportNumber":"document number","birthDate":"YYYY-MM-DD","expiryDate":"YYYY-MM-DD","nationality":"country name in Hebrew"}
 Return ONLY the JSON, no other text.`}
       ]}]
@@ -1491,10 +1495,10 @@ function ScanPassportModal({travelers, apiKey, onClose, onSave}) {
         <h2>📷 סריקת דרכון</h2>
         {step==='upload'&&(
           <>
-            <p style={{color:'var(--text2)',fontSize:14,marginBottom:16}}>העלה תמונה של הדרכון — Claude יחלץ את הפרטים אוטומטית.</p>
+            <p style={{color:'var(--text2)',fontSize:14,marginBottom:16}}>העלה תמונה או PDF של הדרכון — Claude יחלץ את הפרטים אוטומטית.</p>
             {err&&<div style={{color:'#EF4444',fontSize:13,marginBottom:12}}>⚠️ {err}</div>}
-            <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile}/>
-            <button className="btn btn-primary" onClick={()=>fileRef.current.click()}>בחר תמונה</button>
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:'none'}} onChange={handleFile}/>
+            <button className="btn btn-primary" onClick={()=>fileRef.current.click()}>בחר תמונה או PDF</button>
           </>
         )}
         {step==='scanning'&&(
