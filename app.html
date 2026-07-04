@@ -324,7 +324,7 @@ function reducer(s, a) {
     case 'LOAD': return {...initState,...a.s,travelers:s.travelers};
     case 'SET_ANTHROPIC_KEY': return {...s, anthropicKey:a.key};
     case 'LOAD_TRAVELERS': return {...s, travelers:a.travelers||[]};
-    case 'ADD_TRAVELER': return {...s, travelers:[...s.travelers,{passports:[],frequentFlyer:[],...a.t,id:genId()}]};
+    case 'ADD_TRAVELER': return {...s, travelers:[...s.travelers,{passports:[],frequentFlyer:[],...a.tv,id:genId()}]};
     case 'UPD_TRAVELER': return {...s, travelers:s.travelers.map(t=>t.id===a.id?{...t,...a.u}:t)};
     case 'DEL_TRAVELER': return {...s, travelers:s.travelers.filter(t=>t.id!==a.id)};
     default: return s;
@@ -1702,7 +1702,7 @@ function TravelersPage() {
       const t = state.travelers.find(x=>x.id===result.travelerId);
       if(t) dispatch({t:'UPD_TRAVELER',id:t.id,u:{passports:[...(t.passports||[]),result.passport]}});
     } else {
-      dispatch({t:'ADD_TRAVELER',t:{...result.traveler,passports:[result.passport],frequentFlyer:[]}});
+      dispatch({t:'ADD_TRAVELER',tv:{...result.traveler,passports:[result.passport],frequentFlyer:[]}});
     }
     setScanModal(false);
   }
@@ -1722,7 +1722,7 @@ function TravelersPage() {
           : state.travelers.map(t=><TravelerCard key={t.id} t={t} dispatch={dispatch}/>)
         }
       </div>
-      {addModal && <TravelerModal onClose={()=>setAddModal(false)} onSave={t=>{dispatch({t:'ADD_TRAVELER',t});setAddModal(false);}}/>}
+      {addModal && <TravelerModal onClose={()=>setAddModal(false)} onSave={tv=>{dispatch({t:'ADD_TRAVELER',tv});setAddModal(false);}}/>}
       {scanModal && <ScanPassportModal travelers={state.travelers} apiKey={state.anthropicKey} onClose={()=>setScanModal(false)} onSave={handleScanResult}/>}
     </div>
   );
