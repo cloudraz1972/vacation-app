@@ -898,7 +898,7 @@ function WorldMapPage() {
   }
 
   const visitedList=useMemo(()=>
-    [...visitedNums].map(n=>numToCountry[n]).filter(Boolean),
+    [...visitedNums.paid,...visitedNums.work].map(n=>numToCountry[n]).filter(Boolean),
   [visitedNums]);
 
   return (
