@@ -307,7 +307,7 @@ function dateRange(a, b) {
 // ── Store ──────────────────────────────────────────────────────────────────
 const Ctx = createContext(null);
 const SKEY = 'vacation-app-v2';
-const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], travelers: [] };
+const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], travelers: [], anthropicKey: '' };
 
 function reducer(s, a) {
   switch(a.t) {
@@ -322,8 +322,9 @@ function reducer(s, a) {
     case 'REN_CAT': return {...s, cats:s.cats.map(c=>c===a.o?a.n:c)};
     case 'DEL_CAT': return {...s, cats:s.cats.filter(c=>c!==a.n)};
     case 'LOAD': return {...initState,...a.s,travelers:s.travelers};
+    case 'SET_ANTHROPIC_KEY': return {...s, anthropicKey:a.key};
     case 'LOAD_TRAVELERS': return {...s, travelers:a.travelers||[]};
-    case 'ADD_TRAVELER': return {...s, travelers:[...s.travelers,{...a.t,id:genId(),passports:[],frequentFlyer:[]}]};
+    case 'ADD_TRAVELER': return {...s, travelers:[...s.travelers,{passports:[],frequentFlyer:[],...a.t,id:genId()}]};
     case 'UPD_TRAVELER': return {...s, travelers:s.travelers.map(t=>t.id===a.id?{...t,...a.u}:t)};
     case 'DEL_TRAVELER': return {...s, travelers:s.travelers.filter(t=>t.id!==a.id)};
     default: return s;
@@ -1385,11 +1386,149 @@ function SettingsPage() {
         </div>
       </div>
       <div className="settings-sec">
+        <h2>סריקת דרכון (AI)</h2>
+        <p className="settings-hint">מפתח Anthropic Claude לסריקה אוטומטית של דרכונים. המפתח נשמר בענן ומשותף לכל המשתמשים המחוברים.</p>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input className="input" type="password" dir="ltr" placeholder="sk-ant-..." value={state.anthropicKey||''} onChange={e=>dispatch({t:'SET_ANTHROPIC_KEY',key:e.target.value})} style={{flex:1,fontFamily:'monospace'}}/>
+          {state.anthropicKey && <span style={{color:'#10B981',fontSize:13}}>✓ מוגדר</span>}
+        </div>
+      </div>
+      <div className="settings-sec">
         <h2>אודות</h2>
         <p className="settings-hint">
           מנהל חופשות — אפליקציית ניהול ומעקב חופשות משפחתיות.<br/>
           כל הנתונים נשמרים ב-localStorage במכשיר זה בלבד.
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Passport Scanner ───────────────────────────────────────────────────────
+async function scanPassport(imageBase64, mediaType, apiKey) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'x-api-key':apiKey,
+      'anthropic-version':'2023-06-01',
+      'content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify({
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:1024,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:mediaType,data:imageBase64}},
+        {type:'text',text:`Extract passport data from this image. Return ONLY a JSON object with these fields:
+{"firstNameEn":"given names in Latin","lastNameEn":"surname in Latin","firstNameHe":"given names in Hebrew if visible else empty","lastNameHe":"surname in Hebrew if visible else empty","passportNumber":"document number","birthDate":"YYYY-MM-DD","expiryDate":"YYYY-MM-DD","nationality":"country name in Hebrew"}
+Return ONLY the JSON, no other text.`}
+      ]}]
+    })
+  });
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||'שגיאת API');}
+  const data=await res.json();
+  const txt=data.content[0].text.trim();
+  const m=txt.match(/\{[\s\S]*\}/);
+  if(!m) throw new Error('לא ניתן לפרש תשובה');
+  return JSON.parse(m[0]);
+}
+
+function ScanPassportModal({travelers, apiKey, onClose, onSave}) {
+  const [step,setStep]=useState('upload'); // upload | scanning | confirm
+  const [err,setErr]=useState('');
+  const [extracted,setExtracted]=useState(null);
+  const [matchedTraveler,setMatchedTraveler]=useState(null); // existing traveler match
+  const [f,setF]=useState({firstNameHe:'',lastNameHe:'',firstNameEn:'',lastNameEn:'',birthDate:'',passportNumber:'',expiryDate:'',nationality:''});
+  const fileRef=useRef();
+
+  async function handleFile(e){
+    const file=e.target.files[0];
+    if(!file) return;
+    if(!apiKey){setErr('הגדר מפתח Anthropic בהגדרות תחילה.');return;}
+    setStep('scanning'); setErr('');
+    try {
+      const reader=new FileReader();
+      reader.onload=async(ev)=>{
+        try {
+          const b64=ev.target.result.split(',')[1];
+          const mt=file.type||'image/jpeg';
+          const info=await scanPassport(b64,mt,apiKey);
+          setExtracted(info);
+          const filled={
+            firstNameHe:info.firstNameHe||'',lastNameHe:info.lastNameHe||'',
+            firstNameEn:info.firstNameEn||'',lastNameEn:info.lastNameEn||'',
+            birthDate:info.birthDate||'',passportNumber:info.passportNumber||'',
+            expiryDate:info.expiryDate||'',nationality:info.nationality||''
+          };
+          setF(filled);
+          // try to match existing traveler by last name + first name (case insensitive)
+          const match=travelers.find(t=>{
+            const enMatch=info.lastNameEn&&t.lastNameEn&&t.lastNameEn.toLowerCase()===info.lastNameEn.toLowerCase();
+            const heMatch=info.lastNameHe&&t.lastNameHe&&t.lastNameHe===info.lastNameHe;
+            return enMatch||heMatch;
+          });
+          setMatchedTraveler(match||null);
+          setStep('confirm');
+        } catch(ex){setErr(ex.message);setStep('upload');}
+      };
+      reader.readAsDataURL(file);
+    } catch(ex){setErr(ex.message);setStep('upload');}
+  }
+
+  function save(useExisting){
+    const passport={id:genId(),country:f.nationality,number:f.passportNumber,expiry:f.expiryDate,photoUrl:''};
+    if(useExisting&&matchedTraveler){
+      onSave({mode:'addPassport',travelerId:matchedTraveler.id,passport});
+    } else {
+      const traveler={firstNameHe:f.firstNameHe,lastNameHe:f.lastNameHe,firstNameEn:f.firstNameEn,lastNameEn:f.lastNameEn,birthDate:f.birthDate};
+      onSave({mode:'newTraveler',traveler,passport});
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:520}}>
+        <h2>📷 סריקת דרכון</h2>
+        {step==='upload'&&(
+          <>
+            <p style={{color:'var(--text2)',fontSize:14,marginBottom:16}}>העלה תמונה של הדרכון — Claude יחלץ את הפרטים אוטומטית.</p>
+            {err&&<div style={{color:'#EF4444',fontSize:13,marginBottom:12}}>⚠️ {err}</div>}
+            <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile}/>
+            <button className="btn btn-primary" onClick={()=>fileRef.current.click()}>בחר תמונה</button>
+          </>
+        )}
+        {step==='scanning'&&(
+          <div style={{textAlign:'center',padding:'32px 0',color:'var(--text2)'}}>
+            <div style={{fontSize:32,marginBottom:12}}>🔍</div>
+            <div>סורק דרכון...</div>
+          </div>
+        )}
+        {step==='confirm'&&(
+          <>
+            {matchedTraveler&&(
+              <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,padding:10,marginBottom:14,fontSize:13}}>
+                ✅ נמצא נוסע קיים: <strong>{matchedTraveler.firstNameHe||matchedTraveler.firstNameEn} {matchedTraveler.lastNameHe||matchedTraveler.lastNameEn}</strong> — הדרכון יתווסף אליו.
+              </div>
+            )}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div className="fg"><label>שם פרטי (עברית)</label><input className="input" value={f.firstNameHe} onChange={e=>setF({...f,firstNameHe:e.target.value})}/></div>
+              <div className="fg"><label>שם משפחה (עברית)</label><input className="input" value={f.lastNameHe} onChange={e=>setF({...f,lastNameHe:e.target.value})}/></div>
+              <div className="fg"><label>First Name</label><input className="input" dir="ltr" value={f.firstNameEn} onChange={e=>setF({...f,firstNameEn:e.target.value})}/></div>
+              <div className="fg"><label>Last Name</label><input className="input" dir="ltr" value={f.lastNameEn} onChange={e=>setF({...f,lastNameEn:e.target.value})}/></div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+              <div className="fg"><label>תאריך לידה</label><input className="input" type="date" value={f.birthDate} onChange={e=>setF({...f,birthDate:e.target.value})}/></div>
+              <div className="fg"><label>מספר דרכון</label><input className="input" dir="ltr" value={f.passportNumber} onChange={e=>setF({...f,passportNumber:e.target.value})}/></div>
+              <div className="fg"><label>תוקף עד</label><input className="input" type="date" value={f.expiryDate} onChange={e=>setF({...f,expiryDate:e.target.value})}/></div>
+            </div>
+            <div className="fg"><label>אזרחות</label><input className="input" value={f.nationality} onChange={e=>setF({...f,nationality:e.target.value})}/></div>
+            <div className="modal-actions" style={{flexWrap:'wrap',gap:8}}>
+              <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+              {matchedTraveler&&<button className="btn btn-primary" onClick={()=>save(true)}>הוסף לנוסע קיים</button>}
+              <button className={matchedTraveler?'btn btn-secondary':'btn btn-primary'} onClick={()=>save(false)}>צור נוסע חדש</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1542,11 +1681,26 @@ function TravelerCard({t, dispatch}) {
 function TravelersPage() {
   const {state, dispatch} = useStore();
   const [addModal, setAddModal] = useState(false);
+  const [scanModal, setScanModal] = useState(false);
+
+  function handleScanResult(result) {
+    if(result.mode==='addPassport') {
+      const t = state.travelers.find(x=>x.id===result.travelerId);
+      if(t) dispatch({t:'UPD_TRAVELER',id:t.id,u:{passports:[...(t.passports||[]),result.passport]}});
+    } else {
+      dispatch({t:'ADD_TRAVELER',t:{...result.traveler,passports:[result.passport],frequentFlyer:[]}});
+    }
+    setScanModal(false);
+  }
+
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">נוסעים</h1>
-        <button className="btn btn-primary" onClick={()=>setAddModal(true)}>+ הוסף נוסע</button>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn btn-secondary" onClick={()=>setScanModal(true)}>📷 סרוק דרכון</button>
+          <button className="btn btn-primary" onClick={()=>setAddModal(true)}>+ הוסף נוסע</button>
+        </div>
       </div>
       <div className="traveler-list">
         {state.travelers.length===0
@@ -1555,6 +1709,7 @@ function TravelersPage() {
         }
       </div>
       {addModal && <TravelerModal onClose={()=>setAddModal(false)} onSave={t=>{dispatch({t:'ADD_TRAVELER',t});setAddModal(false);}}/>}
+      {scanModal && <ScanPassportModal travelers={state.travelers} apiKey={state.anthropicKey} onClose={()=>setScanModal(false)} onSave={handleScanResult}/>}
     </div>
   );
 }
