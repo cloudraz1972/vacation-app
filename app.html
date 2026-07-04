@@ -338,12 +338,15 @@ function StoreProvider({children}) {
   const isRemoteUpdate = useRef(false);
 
   const [travelersLoaded, setTravelersLoaded] = useState(false);
+  // counter: כמה snapshots צפויות מ-Firestore כתגובה לשמירה שלנו
+  const pendingSnapshots = useRef(0);
 
   // האזן לשינויים מ-Firestore (סנכרון בזמן אמת)
   useEffect(()=>{
     const unsub = STATE_DOC.onSnapshot(doc=>{
       if(doc.exists){
-        isRemoteUpdate.current = true;
+        if(pendingSnapshots.current > 0) { pendingSnapshots.current--; }
+        else { isRemoteUpdate.current = true; }
         dispatch({t:'LOAD', s:doc.data()});
       }
       setLoaded(true);
@@ -354,7 +357,8 @@ function StoreProvider({children}) {
   useEffect(()=>{
     const unsub = TRAVELERS_DOC.onSnapshot(doc=>{
       if(doc.exists){
-        isRemoteUpdate.current = true;
+        if(pendingSnapshots.current > 0) { pendingSnapshots.current--; }
+        else { isRemoteUpdate.current = true; }
         dispatch({t:'LOAD_TRAVELERS', travelers:doc.data().travelers||[]});
       }
       setTravelersLoaded(true);
@@ -369,12 +373,14 @@ function StoreProvider({children}) {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async ()=>{
       try {
+        pendingSnapshots.current = 2; // מצפים ל-2 snapshots בחזרה
         const {travelers, ...mainState} = state;
         await Promise.all([
           STATE_DOC.set(mainState),
           TRAVELERS_DOC.set({travelers})
         ]);
       } catch(e) {
+        pendingSnapshots.current = 0;
         console.error('שגיאת שמירה ל-Firestore:', e);
         alert('שגיאה בשמירת הנתונים: ' + e.message);
       }
