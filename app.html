@@ -1726,7 +1726,18 @@ function TravelerCard({t, dispatch}) {
           {(t.passports||[]).map(pp=>(
             <div key={pp.id} className="titem">
               <span style={{flex:1}}>{pp.country && countryFlag(COUNTRIES.find(c=>c.name===pp.country)?.code||'')} <strong>{pp.country}</strong> | {pp.number} | תוקף: {pp.expiry?fmtDate(pp.expiry):'—'}</span>
-              {pp.photoUrl && <a href={pp.photoUrl} target="_blank" className="passport-photo">📷</a>}
+              {pp.photoUrl && <button className="btn btn-icon btn-sm" title="פתח צילום" onClick={()=>{
+                if(pp.photoUrl.startsWith('data:')){
+                  const [header,b64]=pp.photoUrl.split(',');
+                  const mime=header.match(/:(.*?);/)[1];
+                  const bytes=atob(b64);
+                  const arr=new Uint8Array(bytes.length);
+                  for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+                  const blob=new Blob([arr],{type:mime});
+                  const url=URL.createObjectURL(blob);
+                  window.open(url,'_blank');
+                } else { window.open(pp.photoUrl,'_blank'); }
+              }}>📷</button>}
               <button className="btn btn-icon btn-sm" onClick={()=>setPpModal({mode:'edit',pp})}>✏️</button>
               <button className="btn btn-icon btn-sm" onClick={()=>delPassport(pp.id)}>🗑️</button>
             </div>
