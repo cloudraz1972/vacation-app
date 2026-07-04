@@ -334,56 +334,55 @@ function reducer(s, a) {
 function StoreProvider({children}) {
   const [state, dispatch] = useReducer(reducer, initState);
   const [loaded, setLoaded] = useState(false);
-  const saveTimer = useRef(null);
-  const isRemoteUpdate = useRef(false);
-
   const [travelersLoaded, setTravelersLoaded] = useState(false);
-  const remoteMain = useRef(false);
-  const remoteTravelers = useRef(false);
-  const mainTimer = useRef(null);
-  const travTimer = useRef(null);
+  const isRemoteUpdate = useRef(false);
+  const saveTimer = useRef(null);
+  const travSaveTimer = useRef(null);
+  const travelersRef = useRef([]);
 
-  // האזן לשינויים מ-Firestore
+  // real-time sync למצב הראשי בלבד
   useEffect(()=>{
     const unsub = STATE_DOC.onSnapshot(doc=>{
-      if(doc.exists){ remoteMain.current=true; dispatch({t:'LOAD', s:doc.data()}); }
+      if(doc.exists){ isRemoteUpdate.current=true; dispatch({t:'LOAD', s:doc.data()}); }
       setLoaded(true);
     }, ()=>setLoaded(true));
     return unsub;
   },[]);
 
+  // טעינה חד-פעמית של נוסעים (ללא subscription)
   useEffect(()=>{
-    const unsub = TRAVELERS_DOC.onSnapshot(doc=>{
-      if(doc.exists){ remoteTravelers.current=true; dispatch({t:'LOAD_TRAVELERS', travelers:doc.data().travelers||[]}); }
+    TRAVELERS_DOC.get().then(doc=>{
+      const list = doc.exists ? (doc.data().travelers||[]) : [];
+      travelersRef.current = list;
+      dispatch({t:'LOAD_TRAVELERS', travelers:list});
       setTravelersLoaded(true);
-    }, ()=>setTravelersLoaded(true));
-    return unsub;
+    }).catch(()=>setTravelersLoaded(true));
   },[]);
 
-  // שמור mainState (ללא travelers)
-  const {travelers, ...mainState} = state;
+  // שמור mainState כשמשתנה
   useEffect(()=>{
     if(!loaded) return;
-    if(remoteMain.current){ remoteMain.current=false; return; }
-    clearTimeout(mainTimer.current);
-    mainTimer.current = setTimeout(async ()=>{
-      try { await STATE_DOC.set(mainState); }
-      catch(e){ console.error('שגיאת שמירה state:', e); alert('שגיאה בשמירה: '+e.message); }
+    if(isRemoteUpdate.current){ isRemoteUpdate.current=false; return; }
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async ()=>{
+      try {
+        const {travelers, ...mainState} = state;
+        await STATE_DOC.set(mainState);
+      } catch(e){ console.error('שגיאת שמירה:', e); alert('שגיאה בשמירה: '+e.message); }
     }, 600);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[JSON.stringify(mainState), loaded]);
+  },[state, loaded]);
 
-  // שמור travelers בנפרד
+  // שמור travelers כשמשתנים
   useEffect(()=>{
     if(!travelersLoaded) return;
-    if(remoteTravelers.current){ remoteTravelers.current=false; return; }
-    clearTimeout(travTimer.current);
-    travTimer.current = setTimeout(async ()=>{
-      try { await TRAVELERS_DOC.set({travelers}); }
-      catch(e){ console.error('שגיאת שמירה travelers:', e); alert('שגיאה בשמירת נוסעים: '+e.message); }
+    if(JSON.stringify(state.travelers)===JSON.stringify(travelersRef.current)) return;
+    travelersRef.current = state.travelers;
+    clearTimeout(travSaveTimer.current);
+    travSaveTimer.current = setTimeout(async ()=>{
+      try { await TRAVELERS_DOC.set({travelers: state.travelers}); }
+      catch(e){ console.error('שגיאת שמירת נוסעים:', e); alert('שגיאה בשמירת נוסעים: '+e.message); }
     }, 600);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[JSON.stringify(travelers), travelersLoaded]);
+  },[state.travelers, travelersLoaded]);
 
   if(!loaded||!travelersLoaded) return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:16,color:'#64748B'}}>
