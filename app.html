@@ -1576,10 +1576,18 @@ function TravelerModal({traveler, onClose, onSave}) {
   );
 }
 
+// שמור/טען תמונות דרכון מ-localStorage (לא מ-Firestore)
+function ppPhotoKey(passportId){ return 'pp_photo_'+passportId; }
+function ppPhotoSave(passportId, dataUrl){ try{ localStorage.setItem(ppPhotoKey(passportId), dataUrl); }catch(e){ alert('אחסון מקומי מלא — לא ניתן לשמור תמונה'); } }
+function ppPhotoLoad(passportId){ return localStorage.getItem(ppPhotoKey(passportId))||''; }
+function ppPhotoDel(passportId){ localStorage.removeItem(ppPhotoKey(passportId)); }
+
 function PassportModal({passport, onClose, onSave}) {
-  const blank = {country:'',number:'',expiry:'',photoUrl:''};
-  const [f, setF] = useState(passport ? {...passport} : blank);
+  const blank = {country:'',number:'',expiry:''};
+  const [f, setF] = useState(passport ? {country:passport.country||'',number:passport.number||'',expiry:passport.expiry||''} : blank);
   const [uploading, setUploading] = useState(false);
+  const [localPhoto, setLocalPhoto] = useState(()=> passport ? ppPhotoLoad(passport.id) : '');
+  const [pendingPhotoData, setPendingPhotoData] = useState(''); // data URL לפני שיש ID
   const fileRef = useRef();
 
   function compressImage(file) {
@@ -1595,7 +1603,7 @@ function PassportModal({passport, onClose, onSave}) {
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const MAX = 800;
+        const MAX = 1000;
         let w = img.width, h = img.height;
         if (w > MAX || h > MAX) {
           if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -1604,7 +1612,7 @@ function PassportModal({passport, onClose, onSave}) {
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
       };
       img.onerror = reject;
       img.src = url;
@@ -1617,7 +1625,8 @@ function PassportModal({passport, onClose, onSave}) {
     setUploading(true);
     try {
       const dataUrl = await compressImage(file);
-      setF(prev => ({...prev, photoUrl: dataUrl}));
+      setPendingPhotoData(dataUrl);
+      setLocalPhoto(dataUrl);
     } catch(err) {
       alert('שגיאה בטעינת הקובץ');
     } finally {
@@ -1625,8 +1634,18 @@ function PassportModal({passport, onClose, onSave}) {
     }
   }
 
-  const isDataUrl = f.photoUrl && f.photoUrl.startsWith('data:');
-  const isImage = isDataUrl && f.photoUrl.startsWith('data:image');
+  function handleRemovePhoto() {
+    setPendingPhotoData('');
+    setLocalPhoto('');
+    if (passport) ppPhotoDel(passport.id);
+  }
+
+  function handleSave() {
+    onSave(f, pendingPhotoData || (localPhoto ? null : 'remove'));
+  }
+
+  const isImage = localPhoto && localPhoto.startsWith('data:image');
+  const isPdf = localPhoto && localPhoto.startsWith('data:application/pdf');
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -1641,20 +1660,20 @@ function PassportModal({passport, onClose, onSave}) {
         <div className="fg"><label>מספר דרכון</label><input className="input" dir="ltr" value={f.number} onChange={e=>setF({...f,number:e.target.value})}/></div>
         <div className="fg"><label>תוקף עד</label><input className="input" type="date" value={f.expiry} onChange={e=>setF({...f,expiry:e.target.value})}/></div>
         <div className="fg">
-          <label>צילום דרכון</label>
+          <label>צילום דרכון <span style={{fontSize:11,color:'var(--text2)'}}>(נשמר במכשיר זה)</span></label>
           <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:'none'}} onChange={handleFile}/>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <button className="btn btn-secondary" onClick={()=>fileRef.current.click()} disabled={uploading}>
-              {uploading ? 'טוען...' : f.photoUrl ? '🔄 החלף קובץ' : '📎 צרף קובץ'}
+              {uploading ? 'טוען...' : localPhoto ? '🔄 החלף קובץ' : '📎 צרף קובץ'}
             </button>
-            {f.photoUrl && <button className="btn btn-secondary" style={{color:'var(--red)'}} onClick={()=>setF({...f,photoUrl:''})}>הסר</button>}
+            {localPhoto && <button className="btn btn-secondary" style={{color:'var(--red)'}} onClick={handleRemovePhoto}>הסר</button>}
           </div>
-          {isImage && <img src={f.photoUrl} alt="דרכון" style={{marginTop:8,maxWidth:'100%',maxHeight:180,borderRadius:6,border:'1px solid var(--border)'}}/>}
-          {isDataUrl && !isImage && <div style={{marginTop:8,fontSize:13,color:'var(--green)'}}>✅ PDF מצורף</div>}
+          {isImage && <img src={localPhoto} alt="דרכון" style={{marginTop:8,maxWidth:'100%',maxHeight:180,borderRadius:6,border:'1px solid var(--border)'}}/>}
+          {isPdf && <div style={{marginTop:8,fontSize:13,color:'var(--green)'}}>✅ PDF מצורף</div>}
         </div>
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
-          <button className="btn btn-primary" onClick={()=>onSave(f)}>שמור</button>
+          <button className="btn btn-primary" onClick={handleSave}>שמור</button>
         </div>
       </div>
     </div>
@@ -1683,15 +1702,26 @@ function TravelerCard({t, dispatch}) {
   const [ffModal, setFfModal] = useState(null);
   const [editModal, setEditModal] = useState(false);
 
-  function savePassport(pp) {
-    const passports = ppModal.pp
-      ? (t.passports||[]).map(p=>p.id===ppModal.pp.id?{...p,...pp}:p)
-      : [...(t.passports||[]), {...pp, id:genId()}];
+  function savePassport(pp, photoData) {
+    let passports;
+    if (ppModal.pp) {
+      // עריכה
+      const ppId = ppModal.pp.id;
+      if (photoData) ppPhotoSave(ppId, photoData);
+      else if (photoData === 'remove') ppPhotoDel(ppId);
+      passports = (t.passports||[]).map(p=>p.id===ppId?{...p,...pp}:p);
+    } else {
+      // הוספה חדשה
+      const newId = genId();
+      if (photoData) ppPhotoSave(newId, photoData);
+      passports = [...(t.passports||[]), {...pp, id:newId}];
+    }
     dispatch({t:'UPD_TRAVELER', id:t.id, u:{passports}});
     setPpModal(null);
   }
   function delPassport(id) {
     if(!confirm('למחוק דרכון זה?')) return;
+    ppPhotoDel(id);
     dispatch({t:'UPD_TRAVELER', id:t.id, u:{passports:(t.passports||[]).filter(p=>p.id!==id)}});
   }
   function saveFF(ff) {
@@ -1723,25 +1753,25 @@ function TravelerCard({t, dispatch}) {
       <div className="tcard-body">
         <div className="tsec">
           <div className="tsec-title">📘 דרכונים</div>
-          {(t.passports||[]).map(pp=>(
+          {(t.passports||[]).map(pp=>{
+            const photo = ppPhotoLoad(pp.id);
+            return (
             <div key={pp.id} className="titem">
               <span style={{flex:1}}>{pp.country && countryFlag(COUNTRIES.find(c=>c.name===pp.country)?.code||'')} <strong>{pp.country}</strong> | {pp.number} | תוקף: {pp.expiry?fmtDate(pp.expiry):'—'}</span>
-              {pp.photoUrl && <button className="btn btn-icon btn-sm" title="פתח צילום" onClick={()=>{
-                if(pp.photoUrl.startsWith('data:')){
-                  const [header,b64]=pp.photoUrl.split(',');
-                  const mime=header.match(/:(.*?);/)[1];
-                  const bytes=atob(b64);
-                  const arr=new Uint8Array(bytes.length);
-                  for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
-                  const blob=new Blob([arr],{type:mime});
-                  const url=URL.createObjectURL(blob);
-                  window.open(url,'_blank');
-                } else { window.open(pp.photoUrl,'_blank'); }
+              {photo && <button className="btn btn-icon btn-sm" title="פתח צילום" onClick={()=>{
+                const [header,b64]=photo.split(',');
+                const mime=header.match(/:(.*?);/)[1];
+                const bytes=atob(b64);
+                const arr=new Uint8Array(bytes.length);
+                for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+                const blob=new Blob([arr],{type:mime});
+                window.open(URL.createObjectURL(blob),'_blank');
               }}>📷</button>}
               <button className="btn btn-icon btn-sm" onClick={()=>setPpModal({mode:'edit',pp})}>✏️</button>
               <button className="btn btn-icon btn-sm" onClick={()=>delPassport(pp.id)}>🗑️</button>
             </div>
-          ))}
+            );
+          })}
           <span className="titem-add" onClick={()=>setPpModal({mode:'add'})}>+ הוסף דרכון</span>
         </div>
         <div className="tsec">
