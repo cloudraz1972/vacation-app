@@ -1616,21 +1616,26 @@ function PassportModal({passport, onClose, onSave}) {
 
   async function handleSave() {
     setUploading(true);
+    setErr('');
     try {
       let photoUrl = f.photoUrl;
       if (pendingFile) {
         const ppId = passport?.id || genId();
+        console.log('מעלה קובץ ל-Storage...', pendingFile.name, ppId);
         photoUrl = await uploadPassportPhoto(pendingFile, ppId);
+        console.log('הועלה בהצלחה, URL:', photoUrl);
         onSave({...f, photoUrl}, ppId);
       } else {
         onSave(f, null);
       }
     } catch(e) {
-      alert('שגיאה בהעלאת הקובץ: ' + e.message);
+      console.error('שגיאת העלאה:', e);
+      setErr(e.message || 'שגיאה לא ידועה');
     } finally {
       setUploading(false);
     }
   }
+  const [err, setErr] = useState('');
 
   const hasPhoto = preview && preview !== '';
 
@@ -1658,6 +1663,7 @@ function PassportModal({passport, onClose, onSave}) {
           {preview && preview!=='pdf' && <img src={preview} alt="דרכון" style={{marginTop:8,maxWidth:'100%',maxHeight:180,borderRadius:6,border:'1px solid var(--border)'}}/>}
           {preview==='pdf' && <div style={{marginTop:8,fontSize:13,color:'var(--green)'}}>✅ PDF מצורף</div>}
         </div>
+        {err && <div style={{color:'var(--red)',fontSize:13,marginTop:8}}>⚠️ {err}</div>}
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={onClose} disabled={uploading}>ביטול</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={uploading}>{uploading?'מעלה...':'שמור'}</button>
