@@ -1243,13 +1243,25 @@ function AddVacManualModal({onClose,onSave}) {
 
 function VacationsPage() {
   const {state,dispatch}=useStore();
-  const [filter,setFilter]=useState('all');
-  const [yearFilter,setYearFilter]=useState('all');
+  const curYear=String(new Date().getFullYear());
+  const [types,setTypes]=useState(new Set(['planned','paid']));
+  const [yearFilter,setYearFilter]=useState(curYear);
   const [addModal,setAddModal]=useState(false);
   const years=useMemo(()=>[...new Set(state.vacations.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a),[state.vacations]);
+
+  function toggleType(v) {
+    setTypes(prev=>{
+      const next=new Set(prev);
+      if(next.has(v)) { next.delete(v); } else { next.add(v); }
+      return next;
+    });
+  }
+  function allTypes() { setTypes(new Set()); }
+
   const list=state.vacations
-    .filter(v=>(filter==='all'||v.type===filter)&&(yearFilter==='all'||v.startDate.startsWith(yearFilter)))
+    .filter(v=>(types.size===0||types.has(v.type))&&(yearFilter==='all'||v.startDate.startsWith(yearFilter)))
     .sort((a,b)=>a.startDate.localeCompare(b.startDate));
+
   return (
     <div className="page">
       <div className="page-header">
@@ -1261,8 +1273,9 @@ function VacationsPage() {
         {years.map(y=><button key={y} className={`ftab${yearFilter===y?' active':''}`} onClick={()=>setYearFilter(y)}>{y}</button>)}
       </div>
       <div className="filter-tabs" style={{marginTop:4}}>
-        {[['all','הכל'],['school','בית ספר'],['planned','מתוכננות'],['paid','משולמות'],['health','בריאות'],['closed','יומן סגור'],['work','נסיעת עבודה']].map(([v,lbl])=>(
-          <button key={v} className={`ftab${filter===v?' active':''}`} onClick={()=>setFilter(v)}>{lbl}</button>
+        <button className={`ftab${types.size===0?' active':''}`} onClick={allTypes}>הכל</button>
+        {[['school','בית ספר'],['planned','מתוכננות'],['paid','משולמות'],['health','בריאות'],['closed','יומן סגור'],['work','נסיעת עבודה']].map(([v,lbl])=>(
+          <button key={v} className={`ftab${types.has(v)?' active':''}`} onClick={()=>toggleType(v)}>{lbl}</button>
         ))}
       </div>
       <div className="vac-list">
