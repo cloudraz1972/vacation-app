@@ -135,6 +135,10 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .ftab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 .ftab:hover:not(.active){border-color:var(--blue);color:var(--blue)}
 .vac-list{display:flex;flex-direction:column;gap:12px}
+.vac-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:12px}
+.vac-tab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:8px 16px;font-size:13px;color:var(--text2);cursor:pointer;font-family:inherit}
+.vac-tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+.vac-tab:hover:not(.active){color:var(--text)}
 .traveler-list{display:flex;flex-direction:column;gap:14px}
 .traveler-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
 .tcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);border-top:3px solid #8B5CF6;overflow:hidden}
@@ -317,7 +321,7 @@ const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEF
 function reducer(s, a) {
   switch(a.t) {
     case 'SET_YEAR': return {...s, year: a.year};
-    case 'ADD_VAC': return {...s, vacations: [...s.vacations, {...a.v, id:genId(), expenses:[]}]};
+    case 'ADD_VAC': return {...s, vacations: [...s.vacations, {...a.v, id:genId(), expenses:[], travelers:[]}]};
     case 'UPD_VAC': return {...s, vacations: s.vacations.map(v => v.id===a.id ? {...v,...a.u} : v)};
     case 'DEL_VAC': return {...s, vacations: s.vacations.filter(v => v.id!==a.id)};
     case 'ADD_EXP': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, expenses:[...v.expenses,{...a.e,id:genId()}]} : v)};
@@ -1080,8 +1084,9 @@ function downloadICS(vac, method='PUBLISH') {
   URL.revokeObjectURL(url);
 }
 
-function VacCard({v,cats,dispatch}) {
+function VacCard({v,cats,dispatch,allTravelers}) {
   const [open,setOpen]=useState(false);
+  const [tab,setTab]=useState('expenses'); // 'expenses' | 'travelers'
   const [ed,setEd]=useState(false);
   const [ef,setEf]=useState({name:v.name,type:v.type,countryCode:v.countryCode,startDate:v.startDate,endDate:v.endDate,composition:v.composition||''});
   const total=v.expenses.reduce((s,e)=>s+(e.amountILS||0),0);
@@ -1142,21 +1147,48 @@ function VacCard({v,cats,dispatch}) {
       </div>
       {open&&(
         <div className="exp-wrap">
-          <div className="exp-title">הוצאות</div>
-          <div className="tbl-wrap">
-            <table>
-              <thead><tr><th>קטגוריה</th><th>סכום</th><th>שער</th><th>מטבע</th><th>בשקלים</th><th>תיאור</th><th></th></tr></thead>
-              <tbody>
-                {v.expenses.map(e=>(
-                  <ExpRow key={e.id} exp={e} cats={cats}
-                    onUpdate={u=>dispatch({t:'UPD_EXP',vid:v.id,eid:e.id,u})}
-                    onDelete={()=>dispatch({t:'DEL_EXP',vid:v.id,eid:e.id})}/>
-                ))}
-                <AddExpRow cats={cats} onAdd={e=>dispatch({t:'ADD_EXP',vid:v.id,e})}/>
-              </tbody>
-            </table>
+          <div className="vac-tabs">
+            <button className={`vac-tab${tab==='expenses'?' active':''}`} onClick={()=>setTab('expenses')}>💰 הוצאות {total>0&&`(${numFmt(total)} ₪)`}</button>
+            <button className={`vac-tab${tab==='travelers'?' active':''}`} onClick={()=>setTab('travelers')}>👤 נוסעים {(v.travelers||[]).length>0&&`(${(v.travelers||[]).length})`}</button>
           </div>
-          {total>0&&<div className="exp-total">סה"כ: <strong>{total.toFixed(2)} ₪</strong></div>}
+          {tab==='expenses'&&(
+            <>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr><th>קטגוריה</th><th>סכום</th><th>שער</th><th>מטבע</th><th>בשקלים</th><th>תיאור</th><th></th></tr></thead>
+                  <tbody>
+                    {v.expenses.map(e=>(
+                      <ExpRow key={e.id} exp={e} cats={cats}
+                        onUpdate={u=>dispatch({t:'UPD_EXP',vid:v.id,eid:e.id,u})}
+                        onDelete={()=>dispatch({t:'DEL_EXP',vid:v.id,eid:e.id})}/>
+                    ))}
+                    <AddExpRow cats={cats} onAdd={e=>dispatch({t:'ADD_EXP',vid:v.id,e})}/>
+                  </tbody>
+                </table>
+              </div>
+              {total>0&&<div className="exp-total">סה"כ: <strong>{total.toFixed(2)} ₪</strong></div>}
+            </>
+          )}
+          {tab==='travelers'&&(
+            <div style={{padding:'12px 0'}}>
+              {(allTravelers||[]).length===0
+                ? <div style={{color:'var(--text2)',fontSize:13}}>אין נוסעים מוגדרים. הוסף נוסעים בדף נוסעים.</div>
+                : (allTravelers||[]).map(tr=>{
+                    const checked=(v.travelers||[]).includes(tr.id);
+                    return (
+                      <label key={tr.id} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',cursor:'pointer',fontSize:14,borderBottom:'1px solid var(--border)'}}>
+                        <input type="checkbox" checked={checked} onChange={()=>{
+                          const list=v.travelers||[];
+                          dispatch({t:'UPD_VAC',id:v.id,u:{travelers:checked?list.filter(x=>x!==tr.id):[...list,tr.id]}});
+                        }}/>
+                        <span style={{fontWeight:600}}>{tr.firstNameHe} {tr.lastNameHe}</span>
+                        {(tr.firstNameEn||tr.lastNameEn)&&<span style={{color:'var(--text2)',fontSize:12}}>{tr.firstNameEn} {tr.lastNameEn}</span>}
+                      </label>
+                    );
+                  })
+              }
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1236,7 +1268,7 @@ function VacationsPage() {
       <div className="vac-list">
         {list.length===0
           ?<div className="empty">אין חופשות להצגה. לחץ + הוסף חופשה או סמן תאריכים בלוח השנה.</div>
-          :list.map(v=><VacCard key={v.id} v={v} cats={state.cats} dispatch={dispatch}/>)
+          :list.map(v=><VacCard key={v.id} v={v} cats={state.cats} dispatch={dispatch} allTravelers={state.travelers}/>)
         }
       </div>
       {addModal&&<AddVacManualModal onClose={()=>setAddModal(false)} onSave={vac=>{dispatch({t:'ADD_VAC',v:vac});setAddModal(false);}}/>}
