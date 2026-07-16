@@ -136,17 +136,20 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .ftab:hover:not(.active){border-color:var(--blue);color:var(--blue)}
 .vac-list{display:flex;flex-direction:column;gap:12px}
 .traveler-list{display:flex;flex-direction:column;gap:14px}
-.tcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border-right:4px solid #8B5CF6;overflow:hidden}
-.tcard-hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px 12px}
-.tcard-name-he{font-size:17px;font-weight:700}
-.tcard-name-en{font-size:13px;color:var(--text2);margin-top:2px}
-.tcard-birth{font-size:12px;color:var(--text2);margin-top:4px}
-.tcard-body{padding:0 20px 16px}
-.tsec{margin-top:12px}
-.tsec-title{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.titem{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px}
-.titem:last-child{border-bottom:none}
-.titem-add{font-size:12px;color:var(--blue);cursor:pointer;margin-top:4px;display:inline-block}
+.traveler-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.tcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);border-top:3px solid #8B5CF6;overflow:hidden}
+.tcard-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 8px}
+.tcard-info{}
+.tcard-name-he{font-size:15px;font-weight:700;line-height:1.2}
+.tcard-name-en{font-size:12px;color:var(--text2)}
+.tcard-birth{font-size:11px;color:var(--text2);margin-top:2px}
+.tcard-actions{display:flex;gap:4px;flex-shrink:0}
+.tcard-body{padding:0 14px 12px;display:flex;flex-direction:column;gap:8px}
+.tsec{border-top:1px solid var(--border);padding-top:8px}
+.tsec-title{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+.titem{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;color:var(--text)}
+.titem-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.titem-add{font-size:11px;color:var(--blue);cursor:pointer;margin-top:2px;display:inline-block}
 .titem-add:hover{text-decoration:underline}
 .passport-photo{color:#3B82F6;font-size:12px;text-decoration:none}
 .passport-photo:hover{text-decoration:underline}
@@ -1727,40 +1730,47 @@ function TravelerCard({t, dispatch}) {
   return (
     <div className="tcard">
       <div className="tcard-hdr">
-        <div>
-          <div className="tcard-name-he">👤 {t.firstNameHe} {t.lastNameHe}</div>
+        <div className="tcard-info">
+          <div className="tcard-name-he">{t.firstNameHe} {t.lastNameHe}</div>
           {(t.firstNameEn||t.lastNameEn) && <div className="tcard-name-en">{t.firstNameEn} {t.lastNameEn}</div>}
-          {t.birthDate && <div className="tcard-birth">🎂 {fmtDate(t.birthDate)}{age!==null?` (גיל ${age})`:''}</div>}
+          {t.birthDate && <div className="tcard-birth">🎂 {fmtDate(t.birthDate)}{age!==null?` · גיל ${age}`:''}</div>}
         </div>
-        <div style={{display:'flex',gap:6}}>
+        <div className="tcard-actions">
           <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>setEditModal(true)}>✏️</button>
           <button className="btn btn-icon btn-sm" title="מחק" onClick={()=>{if(confirm('למחוק נוסע זה?'))dispatch({t:'DEL_TRAVELER',id:t.id});}}>🗑️</button>
         </div>
       </div>
       <div className="tcard-body">
         <div className="tsec">
-          <div className="tsec-title">📘 דרכונים</div>
+          <div className="tsec-title">
+            <span>דרכונים</span>
+            <span className="titem-add" onClick={()=>setPpModal({mode:'add'})}>+ הוסף</span>
+          </div>
           {(t.passports||[]).map(pp=>(
             <div key={pp.id} className="titem">
-              <span style={{flex:1}}>{pp.country && countryFlag(COUNTRIES.find(c=>c.name===pp.country)?.code||'')} <strong>{pp.country}</strong> | {pp.number} | תוקף: {pp.expiry?fmtDate(pp.expiry):'—'}</span>
+              <span className="titem-text">
+                {pp.country && countryFlag(COUNTRIES.find(c=>c.name===pp.country)?.code||'')} {pp.country} · {pp.number} · {pp.expiry?fmtDate(pp.expiry):'ללא תוקף'}
+              </span>
               {pp.photoUrl && <button className="btn btn-icon btn-sm" title="פתח צילום" onClick={()=>window.open(pp.photoUrl,'_blank')}>📷</button>}
               <button className="btn btn-icon btn-sm" onClick={()=>setPpModal({mode:'edit',pp})}>✏️</button>
               <button className="btn btn-icon btn-sm" onClick={()=>delPassport(pp.id)}>🗑️</button>
             </div>
           ))}
-          <span className="titem-add" onClick={()=>setPpModal({mode:'add'})}>+ הוסף דרכון</span>
         </div>
-        <div className="tsec">
-          <div className="tsec-title">✈️ נוסע מתמיד</div>
+        {((t.frequentFlyer||[]).length>0||(t.passports||[]).length===0) && <div className="tsec">
+          <div className="tsec-title">
+            <span>נוסע מתמיד</span>
+            <span className="titem-add" onClick={()=>setFfModal({mode:'add'})}>+ הוסף</span>
+          </div>
           {(t.frequentFlyer||[]).map(ff=>(
             <div key={ff.id} className="titem">
-              <span style={{flex:1}}><strong>{ff.airline}</strong>: {ff.number}</span>
+              <span className="titem-text">{ff.airline} · {ff.number}</span>
               <button className="btn btn-icon btn-sm" onClick={()=>setFfModal({mode:'edit',ff})}>✏️</button>
               <button className="btn btn-icon btn-sm" onClick={()=>delFF(ff.id)}>🗑️</button>
             </div>
           ))}
-          <span className="titem-add" onClick={()=>setFfModal({mode:'add'})}>+ הוסף כרטיס</span>
-        </div>
+          {(t.frequentFlyer||[]).length===0 && <span className="titem-add" style={{color:'var(--text2)'}}>אין כרטיסי נוסע מתמיד</span>}
+        </div>}
       </div>
       {editModal && <TravelerModal traveler={t} onClose={()=>setEditModal(false)} onSave={u=>{dispatch({t:'UPD_TRAVELER',id:t.id,u});setEditModal(false);}}/>}
       {ppModal && <PassportModal passport={ppModal.pp} onClose={()=>setPpModal(null)} onSave={savePassport}/>}
@@ -1793,7 +1803,7 @@ function TravelersPage() {
           <button className="btn btn-primary" onClick={()=>setAddModal(true)}>+ הוסף נוסע</button>
         </div>
       </div>
-      <div className="traveler-list">
+      <div className="traveler-grid">
         {state.travelers.length===0
           ? <div className="empty">אין נוסעים. לחץ + הוסף נוסע.</div>
           : state.travelers.map(t=><TravelerCard key={t.id} t={t} dispatch={dispatch}/>)
