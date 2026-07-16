@@ -1088,7 +1088,7 @@ function VacCard({v,cats,dispatch,allTravelers}) {
   const [open,setOpen]=useState(false);
   const [tab,setTab]=useState('expenses'); // 'expenses' | 'travelers'
   const [ed,setEd]=useState(false);
-  const [ef,setEf]=useState({name:v.name,type:v.type,countryCode:v.countryCode,startDate:v.startDate,endDate:v.endDate,composition:v.composition||''});
+  const [ef,setEf]=useState({name:v.name,type:v.type,countryCode:v.countryCode,startDate:v.startDate,endDate:v.endDate,composition:v.composition||'',albumUrl:v.albumUrl||''});
   const total=v.expenses.reduce((s,e)=>s+(e.amountILS||0),0);
   const days=Math.round((new Date(v.endDate)-new Date(v.startDate))/(1000*60*60*24))+1;
   function saveEdit(){
@@ -1121,6 +1121,7 @@ function VacCard({v,cats,dispatch,allTravelers}) {
                 </select>
                 <input className="input input-sm" type="date" value={ef.startDate} onChange={e=>setEf({...ef,startDate:e.target.value})} title="תאריך התחלה"/>
                 <input className="input input-sm" type="date" value={ef.endDate} onChange={e=>setEf({...ef,endDate:e.target.value})} title="תאריך סיום"/>
+                <input className="input input-sm" dir="ltr" placeholder="קישור לאלבום Google Photos" value={ef.albumUrl} onChange={e=>setEf({...ef,albumUrl:e.target.value})}/>
                 <button className="btn btn-primary btn-sm" onClick={saveEdit}>שמור</button>
                 <button className="btn btn-secondary btn-sm" onClick={()=>setEd(false)}>ביטול</button>
               </div>
@@ -1139,6 +1140,7 @@ function VacCard({v,cats,dispatch,allTravelers}) {
           <span className="total-badge" style={{background:'#EFF6FF',color:'#1D4ED8',border:'1px solid #BFDBFE'}}>{days} ימים</span>
           {total>0&&<span className="total-badge">{numFmt(total)} ₪</span>}
           {v.type==='planned'&&<button className="btn btn-success btn-sm" onClick={()=>dispatch({t:'UPD_VAC',id:v.id,u:{type:'paid'}})}>✓ שולם</button>}
+          {v.albumUrl&&<button className="btn btn-icon btn-sm" title="אלבום תמונות" onClick={()=>window.open(v.albumUrl,'_blank')}>🖼️</button>}
           <button className="btn btn-icon btn-sm" title="הוסף/עדכן ביומן Outlook" onClick={()=>downloadICS(v,'PUBLISH')}>📅</button>
           <button className="btn btn-icon btn-sm" onClick={()=>{setEd(true);setOpen(true);}}>✏️</button>
           <button className="btn btn-danger btn-sm" onClick={()=>{if(confirm('למחוק חופשה זו?')){if(confirm('למחוק גם מיומן Outlook?'))downloadICS(v,'CANCEL');dispatch({t:'DEL_VAC',id:v.id});}}}> 🗑️</button>
@@ -1196,7 +1198,7 @@ function VacCard({v,cats,dispatch,allTravelers}) {
 }
 
 function AddVacManualModal({onClose,onSave}) {
-  const [f,setF]=useState({name:'',type:'planned',countryCode:'',startDate:'',endDate:'',composition:''});
+  const [f,setF]=useState({name:'',type:'planned',countryCode:'',startDate:'',endDate:'',composition:'',albumUrl:''});
   function save(){
     if(!f.startDate||!f.endDate) return;
     const cn=COUNTRIES.find(c=>c.code===f.countryCode);
@@ -1231,6 +1233,9 @@ function AddVacManualModal({onClose,onSave}) {
             <option value="">בחר הרכב...</option>
             {['רז','אלינור','זוגי','משפחתי'].map(o=><option key={o} value={o}>{o}</option>)}
           </select>
+        </div>
+        <div className="fg"><label>🖼️ קישור לאלבום Google Photos</label>
+          <input className="input" dir="ltr" placeholder="https://photos.google.com/..." value={f.albumUrl||''} onChange={e=>setF({...f,albumUrl:e.target.value})}/>
         </div>
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save}>שמור</button>
