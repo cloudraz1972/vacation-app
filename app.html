@@ -1142,10 +1142,12 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted}) {
             )}
           </div>
           <div className="vdates">{fmtDate(v.startDate)} — {fmtDate(v.endDate)}</div>
+          <div style={{display:'flex',gap:6,marginTop:4}}>
+            <span className="total-badge" style={{background:'#EFF6FF',color:'#1D4ED8',border:'1px solid #BFDBFE'}}>{days} ימים</span>
+            {total>0&&<span className="total-badge">{numFmt(total)} ₪</span>}
+          </div>
         </div>
         <div className="vactions" onClick={e=>e.stopPropagation()}>
-          <span className="total-badge" style={{background:'#EFF6FF',color:'#1D4ED8',border:'1px solid #BFDBFE'}}>{days} ימים</span>
-          {total>0&&<span className="total-badge">{numFmt(total)} ₪</span>}
           {v.type==='planned'&&<button className="btn btn-success btn-sm" onClick={()=>dispatch({t:'UPD_VAC',id:v.id,u:{type:'paid'}})}>✓ שולם</button>}
           {v.albumUrl&&<button className="btn btn-icon btn-sm" title="אלבום תמונות" onClick={()=>window.open(v.albumUrl,'_blank')}>🖼️</button>}
           {v.mapsUrl&&<button className="btn btn-icon btn-sm" title="Google Maps" onClick={()=>window.open(v.mapsUrl,'_blank')}>🗺️</button>}
