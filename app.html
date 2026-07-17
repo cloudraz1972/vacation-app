@@ -1018,6 +1018,7 @@ function ExpRow({exp,cats,onUpdate,onDelete}) {
       <td>{f.currency!=='ILS'&&<input className="input input-sm" type="number" step="0.01" value={f.exchangeRate} onChange={e=>setF({...f,exchangeRate:e.target.value})} style={{width:70}} placeholder="שער"/>}</td>
       <td className="ils-cell">{ils.toFixed(2)} ₪</td>
       <td><input className="input input-sm" value={f.description} onChange={e=>setF({...f,description:e.target.value})} style={{width:120}}/></td>
+      <td><input className="input input-sm" dir="ltr" value={f.url||''} onChange={e=>setF({...f,url:e.target.value})} style={{width:140}} placeholder="https://..."/></td>
       <td><button className="btn btn-primary btn-xs" onClick={save}>✓</button> <button className="btn btn-secondary btn-xs" onClick={()=>setEd(false)}>✕</button></td>
     </tr>
   );
@@ -1029,6 +1030,7 @@ function ExpRow({exp,cats,onUpdate,onDelete}) {
       <td>{exp.currency}</td>
       <td className="ils-cell">{(exp.amountILS||0).toFixed(2)} ₪</td>
       <td>{exp.description}</td>
+      <td>{exp.url&&<button className="btn btn-icon btn-xs" title={exp.url} onClick={()=>window.open(exp.url,'_blank')}>🔗</button>}</td>
       <td>
         <button className="btn btn-icon btn-xs" onClick={()=>setEd(true)}>✏️</button>
         <button className="btn btn-icon btn-xs" onClick={onDelete}>🗑️</button>
@@ -1053,6 +1055,7 @@ function AddExpRow({cats,onAdd}) {
       <td>{f.currency!=='ILS'&&<input className="input input-sm" type="number" step="0.01" value={f.exchangeRate} onChange={e=>setF({...f,exchangeRate:e.target.value})} style={{width:70}} placeholder="שער ל-₪"/>}</td>
       <td className="ils-cell">{f.amount?(f.currency==='ILS'?parseFloat(f.amount).toFixed(2):(parseFloat(f.amount)*parseFloat(f.exchangeRate||1)).toFixed(2)):''}{f.amount?' ₪':''}</td>
       <td><input className="input input-sm" value={f.description} onChange={e=>setF({...f,description:e.target.value})} style={{width:120}} placeholder="תיאור"/></td>
+      <td><input className="input input-sm" dir="ltr" value={f.url||''} onChange={e=>setF({...f,url:e.target.value})} style={{width:140}} placeholder="https://..."/></td>
       <td><button className="btn btn-primary btn-sm" onClick={add}>+ הוסף</button></td>
     </tr>
   );
@@ -1167,7 +1170,7 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted}) {
             <>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><SortTh col="category">קטגוריה</SortTh><SortTh col="amount">סכום</SortTh><SortTh col="rate">שער</SortTh><SortTh col="currency">מטבע</SortTh><SortTh col="amountILS">בשקלים</SortTh><SortTh col="description">תיאור</SortTh><th></th></tr></thead>
+                  <thead><tr><SortTh col="category">קטגוריה</SortTh><SortTh col="amount">סכום</SortTh><SortTh col="rate">שער</SortTh><SortTh col="currency">מטבע</SortTh><SortTh col="amountILS">בשקלים</SortTh><SortTh col="description">תיאור</SortTh><th>קישור</th><th></th></tr></thead>
                   <tbody>
                     {[...v.expenses].sort((a,b)=>{
                       if(!expSort.col) return 0;
