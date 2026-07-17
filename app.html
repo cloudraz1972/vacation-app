@@ -1261,7 +1261,7 @@ function AddVacManualModal({onClose,onSave}) {
   );
 }
 
-function VacationsPage({focusVacId}) {
+function VacationsPage({focusVacId, onClearFocus}) {
   const {state,dispatch}=useStore();
   const curYear=String(new Date().getFullYear());
   const [types,setTypes]=useState(new Set(['planned','paid']));
@@ -1277,8 +1277,8 @@ function VacationsPage({focusVacId}) {
   useEffect(()=>{
     if(!focusVacId||!focusRef.current) return;
     const el=focusRef.current;
-    setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'center'}),100);
-  });
+    setTimeout(()=>{el.scrollIntoView({behavior:'smooth',block:'center'});if(onClearFocus)onClearFocus();},400);
+  },[focusVacId]);
   const years=useMemo(()=>[...new Set(state.vacations.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a),[state.vacations]);
 
   function toggleType(v) {
@@ -1919,6 +1919,7 @@ function App() {
   const [focusVacId,setFocusVacId]=useState(null);
   const Page={'/calendar':CalendarPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/dashboard':DashboardPage,'/travelers':TravelersPage,'/settings':SettingsPage}[route]||CalendarPage;
   function goToVac(id){setFocusVacId(id);setRoute('/vacations');}
+  function clearFocus(){setFocusVacId(null);}
 
   useEffect(()=>{
     return auth.onAuthStateChanged(u=>setUser(u||null));
@@ -1938,7 +1939,7 @@ function App() {
       <Nav route={route} setRoute={setRoute} user={user} open={navOpen} setOpen={setNavOpen}/>
       <main className={`main${(!isMobile&&!navOpen)?' nav-collapsed':''}`}
             style={!isMobile&&navOpen?{}:{marginRight:0}}>
-        <Page onGoToVac={goToVac} focusVacId={focusVacId}/>
+        <Page onGoToVac={goToVac} focusVacId={focusVacId} onClearFocus={clearFocus}/>
       </main>
     </StoreProvider>
   );
