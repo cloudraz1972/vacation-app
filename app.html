@@ -1958,7 +1958,7 @@ function DailyPlannerPage() {
 
   const allVacs = useMemo(()=>
     [...state.vacations]
-      .filter(v=>!['school','closed'].includes(v.type))
+      .filter(v=>['planned','paid','work'].includes(v.type))
       .sort((a,b)=>a.startDate.localeCompare(b.startDate)),
     [state.vacations]
   );
