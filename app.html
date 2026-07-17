@@ -1088,6 +1088,12 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted}) {
   const [open,setOpen]=useState(highlighted||false);
   const [tab,setTab]=useState('expenses'); // 'expenses' | 'travelers'
   const [ed,setEd]=useState(false);
+  const [expSort,setExpSort]=useState({col:null,dir:1}); // col: 'category'|'amountILS'|'rate'|'currency'|'description'
+  function toggleSort(col){setExpSort(s=>s.col===col?{col,dir:-s.dir}:{col,dir:1});}
+  function SortTh({col,children}){
+    const active=expSort.col===col;
+    return <th style={{cursor:'pointer',userSelect:'none',whiteSpace:'nowrap'}} onClick={()=>toggleSort(col)}>{children}{active?(expSort.dir===1?' ▲':' ▼'):' ⇅'}</th>;
+  }
   const [ef,setEf]=useState({name:v.name,type:v.type,countryCode:v.countryCode,startDate:v.startDate,endDate:v.endDate,composition:v.composition||'',albumUrl:v.albumUrl||'',mapsUrl:v.mapsUrl||''});
   const total=v.expenses.reduce((s,e)=>s+(e.amountILS||0),0);
   const days=Math.round((new Date(v.endDate)-new Date(v.startDate))/(1000*60*60*24))+1;
@@ -1159,9 +1165,13 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted}) {
             <>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th>קטגוריה</th><th>סכום</th><th>שער</th><th>מטבע</th><th>בשקלים</th><th>תיאור</th><th></th></tr></thead>
+                  <thead><tr><SortTh col="category">קטגוריה</SortTh><SortTh col="amount">סכום</SortTh><SortTh col="rate">שער</SortTh><SortTh col="currency">מטבע</SortTh><SortTh col="amountILS">בשקלים</SortTh><SortTh col="description">תיאור</SortTh><th></th></tr></thead>
                   <tbody>
-                    {v.expenses.map(e=>(
+                    {[...v.expenses].sort((a,b)=>{
+                      if(!expSort.col) return 0;
+                      const va=a[expSort.col]??'', vb=b[expSort.col]??'';
+                      return (typeof va==='number'&&typeof vb==='number'?va-vb:String(va).localeCompare(String(vb),'he'))*expSort.dir;
+                    }).map(e=>(
                       <ExpRow key={e.id} exp={e} cats={cats}
                         onUpdate={u=>dispatch({t:'UPD_EXP',vid:v.id,eid:e.id,u})}
                         onDelete={()=>dispatch({t:'DEL_EXP',vid:v.id,eid:e.id})}/>
