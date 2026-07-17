@@ -1331,7 +1331,7 @@ function DashboardPage() {
   const [yearFilter,setYearFilter]=useState('all');
   const filtered=useMemo(()=>yearFilter==='all'?vacations:vacations.filter(v=>v.startDate.startsWith(yearFilter)),[vacations,yearFilter]);
   const totalILS=useMemo(()=>filtered.reduce((s,v)=>s+v.expenses.reduce((ss,e)=>ss+(e.amountILS||0),0),0),[filtered]);
-  const byVac=useMemo(()=>filtered.filter(v=>v.expenses.length>0).map(v=>({name:v.name,v:v.expenses.reduce((s,e)=>s+(e.amountILS||0),0),type:v.type})).sort((a,b)=>b.v-a.v),[filtered]);
+  const byVac=useMemo(()=>filtered.filter(v=>v.expenses.length>0).map(v=>({name:v.name,v:v.expenses.reduce((s,e)=>s+(e.amountILS||0),0),type:v.type,startDate:v.startDate,endDate:v.endDate,countryName:v.countryName})).sort((a,b)=>b.startDate.localeCompare(a.startDate)),[filtered]);
   const byCat=useMemo(()=>{const m={};for(const v of filtered)for(const e of v.expenses)m[e.category]=(m[e.category]||0)+(e.amountILS||0);return Object.entries(m).map(([name,v])=>({name,v})).sort((a,b)=>b.v-a.v);},[filtered]);
   const stats=useMemo(()=>{
     const countDays=type=>filtered.filter(v=>v.type===type).reduce((s,v)=>{
