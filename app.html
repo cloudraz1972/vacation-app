@@ -143,26 +143,32 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .traveler-list{display:flex;flex-direction:column;gap:14px}
 .traveler-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
 /* Daily Planner */
-.dp-vac-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
-.dp-vac-btn{padding:8px 16px;border-radius:20px;border:2px solid transparent;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:.15s;background:var(--surface)}
-.dp-vac-btn.active{color:#fff}
-.dp-vac-btn:not(.active){border-color:var(--border);color:var(--text2)}
-.dp-days-rail{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:24px;scrollbar-width:thin}
+.dp-selector-row{display:flex;gap:10px;margin-bottom:20px;align-items:center;flex-wrap:wrap}
+.dp-select{flex:1;min-width:180px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);background:var(--surface);font-family:inherit;cursor:pointer}
+.dp-year-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.dp-year-tab{padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:none;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:.15s}
+.dp-year-tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.dp-days-rail{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:24px;scrollbar-width:thin}
 .dp-day-dot{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex-shrink:0}
-.dp-day-circle{width:48px;height:48px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid transparent;transition:.15s;font-weight:700}
-.dp-day-circle.active{border-color:#fff;box-shadow:0 0 0 3px var(--blue)}
-.dp-day-num{font-size:16px;line-height:1}
-.dp-day-date{font-size:9px;line-height:1;opacity:.85}
+.dp-day-bubble{width:44px;height:44px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid transparent;transition:.15s;font-weight:700}
+.dp-day-num{font-size:14px;line-height:1}
+.dp-day-date{font-size:9px;line-height:1;opacity:.85;margin-top:1px}
 .dp-day-label{font-size:10px;color:var(--text2)}
 .dp-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);padding:20px 24px}
 .dp-card-title{font-size:18px;font-weight:700;margin-bottom:4px}
-.dp-card-sub{font-size:13px;color:var(--text2);margin-bottom:16px}
-.dp-activity-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
-.dp-activity-row:last-child{border-bottom:none}
-.dp-time{font-size:13px;font-weight:700;color:var(--blue);min-width:48px;text-align:center}
-.dp-icon{font-size:20px;min-width:28px;text-align:center}
-.dp-text{flex:1;font-size:14px}
-.dp-add-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.dp-card-sub{font-size:13px;color:var(--text2);margin-bottom:20px}
+/* Timeline */
+.dp-timeline{position:relative;padding-right:20px}
+.dp-timeline::before{content:'';position:absolute;right:7px;top:6px;bottom:6px;width:2px;background:var(--border);border-radius:1px}
+.dp-tl-row{display:flex;align-items:flex-start;gap:12px;padding:8px 0;position:relative}
+.dp-tl-dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;outline:2px solid currentColor;flex-shrink:0;margin-top:2px;position:relative;right:-27px;background:currentColor}
+.dp-tl-time{font-size:12px;font-weight:700;color:var(--blue);min-width:44px;padding-top:1px}
+.dp-tl-icon{font-size:17px;flex-shrink:0}
+.dp-tl-text{flex:1;font-size:14px;line-height:1.4}
+.dp-tl-actions{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:.15s}
+.dp-tl-row:hover .dp-tl-actions{opacity:1}
+.dp-activity-row{display:flex;align-items:center;gap:10px;padding:8px 0;flex-wrap:wrap}
+.dp-add-row{display:flex;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap;align-items:center}
 .dp-empty{color:var(--text2);font-size:14px;text-align:center;padding:32px 0}
 .tcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);border-top:3px solid #8B5CF6;overflow:hidden}
 .tcard-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 8px}
@@ -1950,15 +1956,17 @@ function DailyPlannerPage() {
   const [saving, setSaving] = useState(false);
   const saveTimer = useRef(null);
 
-  // בחר רק חופשות שאינן בית ספר / יומן סגור
-  const vacs = useMemo(()=>
+  const allVacs = useMemo(()=>
     [...state.vacations]
       .filter(v=>!['school','closed'].includes(v.type))
       .sort((a,b)=>a.startDate.localeCompare(b.startDate)),
     [state.vacations]
   );
+  const years = useMemo(()=>[...new Set(allVacs.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a), [allVacs]);
+  const [yearFilter, setYearFilter] = useState(()=>String(new Date().getFullYear()));
+  const vacs = useMemo(()=>allVacs.filter(v=>!yearFilter||v.startDate.startsWith(yearFilter)), [allVacs,yearFilter]);
   const [selVacId, setSelVacId] = useState(null);
-  const selVac = selVacId ? vacs.find(v=>v.id===selVacId) : vacs[0];
+  const selVac = (selVacId && vacs.find(v=>v.id===selVacId)) || vacs[0] || null;
 
   // ימים של החופשה הנבחרת
   const days = useMemo(()=> selVac ? dateRange(selVac.startDate, selVac.endDate) : [], [selVac]);
@@ -2023,19 +2031,26 @@ function DailyPlannerPage() {
         {saving && <span style={{fontSize:12,color:'var(--text2)'}}>שומר...</span>}
       </div>
 
-      {vacs.length === 0 ? (
+      {allVacs.length === 0 ? (
         <div className="empty">אין חופשות. הוסף חופשות בלוח השנה.</div>
       ) : (<>
-        {/* בחירת חופשה */}
-        <div className="dp-vac-selector">
-          {vacs.map(v=>(
-            <button key={v.id}
-              className={`dp-vac-btn${(selVac&&selVac.id===v.id)?' active':''}`}
-              style={(selVac&&selVac.id===v.id)?{background:COLORS[v.type],borderColor:COLORS[v.type]}:{borderColor:COLORS[v.type],color:COLORS[v.type]}}
-              onClick={()=>{setSelVacId(v.id);setSelDay(null);}}>
-              {v.name}
-            </button>
-          ))}
+        {/* שורת בחירה: שנה + דרופדאון */}
+        <div className="dp-selector-row">
+          <div className="dp-year-tabs">
+            {years.map(y=>(
+              <button key={y} className={`dp-year-tab${yearFilter===y?' active':''}`}
+                onClick={()=>{setYearFilter(y);setSelVacId(null);setSelDay(null);}}>
+                {y}
+              </button>
+            ))}
+          </div>
+          <select className="dp-select"
+            value={selVac?.id||''}
+            onChange={e=>{setSelVacId(e.target.value);setSelDay(null);}}>
+            {vacs.map(v=>(
+              <option key={v.id} value={v.id}>{v.name} ({fmtDate(v.startDate)})</option>
+            ))}
+          </select>
         </div>
 
         {/* ציר ימים */}
@@ -2045,17 +2060,16 @@ function DailyPlannerPage() {
               const hasPlan = (itinerary[ds]||[]).length > 0;
               const isActive = ds === activeDay;
               const d = new Date(ds);
-              const dateLabel = `${d.getDate()}/${d.getMonth()+1}`;
               return (
                 <div key={ds} className="dp-day-dot" onClick={()=>setSelDay(ds)}>
-                  <div className="dp-day-circle"
-                    style={{
-                      background: isActive ? vacColor : hasPlan ? vacColor+'33' : 'var(--bg)',
-                      borderColor: isActive ? vacColor : hasPlan ? vacColor : 'var(--border)',
-                      color: isActive ? '#fff' : hasPlan ? vacColor : 'var(--text2)'
-                    }}>
+                  <div className="dp-day-bubble" style={{
+                    background: isActive ? vacColor : hasPlan ? vacColor+'22' : 'var(--bg)',
+                    borderColor: isActive ? vacColor : hasPlan ? vacColor : 'var(--border)',
+                    color: isActive ? '#fff' : hasPlan ? vacColor : 'var(--text2)',
+                    borderRadius: isActive ? '22px' : '12px',
+                  }}>
                     <span className="dp-day-num">{i+1}</span>
-                    <span className="dp-day-date">{dateLabel}</span>
+                    <span className="dp-day-date">{d.getDate()}/{d.getMonth()+1}</span>
                   </div>
                   <span className="dp-day-label">{['א','ב','ג','ד','ה','ו','ש'][d.getDay()]}</span>
                 </div>
@@ -2072,17 +2086,23 @@ function DailyPlannerPage() {
           const activities = itinerary[activeDay] || [];
           return (
             <div className="dp-card">
-              <div className="dp-card-title" style={{color:vacColor}}>יום {dayNum} — {dayName}, {fmtDate(activeDay)}</div>
-              <div className="dp-card-sub">{selVac.name}{selVac.countryName ? ` | ${selVac.countryName}` : ''}</div>
+              <div className="dp-card-title" style={{color:vacColor}}>
+                יום {dayNum} — {dayName}, {fmtDate(activeDay)}
+              </div>
+              <div className="dp-card-sub">
+                {selVac.name}{selVac.countryName ? ` · ${selVac.countryName}` : ''}
+              </div>
 
-              {/* פעילויות */}
+              {/* ציר זמן אנכי */}
               {activities.length === 0
-                ? <div className="dp-empty">אין פעילויות מתוכננות ליום זה. הוסף למטה.</div>
-                : activities.map(a=>(
-                  <ActivityRow key={a.id} act={a}
-                    onDel={()=>delActivity(a.id)}
-                    onUpd={u=>updActivity(a.id,u)}/>
-                ))
+                ? <div className="dp-empty">אין פעילויות ליום זה. הוסף למטה.</div>
+                : <div className="dp-timeline">
+                    {activities.map(a=>(
+                      <ActivityRow key={a.id} act={a} color={vacColor}
+                        onDel={()=>delActivity(a.id)}
+                        onUpd={u=>updActivity(a.id,u)}/>
+                    ))}
+                  </div>
               }
 
               {/* שורת הוספה */}
@@ -2115,39 +2135,44 @@ function DailyPlannerPage() {
   );
 }
 
-function ActivityRow({act, onDel, onUpd}) {
+function ActivityRow({act, onDel, onUpd, color}) {
   const [ed, setEd] = useState(false);
   const [f, setF] = useState({time:act.time, icon:act.icon, text:act.text});
   const [showPicker, setShowPicker] = useState(false);
+  const dotColor = color || 'var(--blue)';
   if (ed) return (
-    <div className="dp-activity-row" style={{gap:8,flexWrap:'wrap'}}>
+    <div className="dp-tl-row" style={{paddingRight:0,marginRight:0}}>
+      <div className="dp-tl-dot" style={{color:dotColor}}/>
       <input type="time" className="input input-sm" value={f.time}
-        onChange={e=>setF({...f,time:e.target.value})} style={{width:90}}/>
+        onChange={e=>setF({...f,time:e.target.value})} style={{width:88}}/>
       <div style={{position:'relative'}}>
-        <button className="btn btn-secondary btn-sm" style={{fontSize:18,padding:'4px 10px'}}
+        <button className="btn btn-secondary btn-sm" style={{fontSize:17,padding:'3px 8px'}}
           onClick={()=>setShowPicker(p=>!p)}>{f.icon}</button>
         {showPicker && (
           <div style={{position:'absolute',top:'110%',right:0,zIndex:50,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:8,display:'flex',flexWrap:'wrap',gap:4,width:220,boxShadow:'var(--shm)'}}>
             {ACTIVITY_ICONS.map(ic=>(
-              <button key={ic} style={{background:'none',border:'none',cursor:'pointer',fontSize:20,padding:2,borderRadius:4}}
+              <button key={ic} style={{background:'none',border:'none',cursor:'pointer',fontSize:19,padding:2,borderRadius:4}}
                 onClick={()=>{setF({...f,icon:ic});setShowPicker(false);}}>{ic}</button>
             ))}
           </div>
         )}
       </div>
       <input className="input input-sm" value={f.text} onChange={e=>setF({...f,text:e.target.value})}
-        style={{flex:1,minWidth:120}}/>
+        style={{flex:1,minWidth:100}}/>
       <button className="btn btn-primary btn-xs" onClick={()=>{onUpd(f);setEd(false);}}>✓</button>
       <button className="btn btn-secondary btn-xs" onClick={()=>setEd(false)}>✕</button>
     </div>
   );
   return (
-    <div className="dp-activity-row">
-      <span className="dp-time">{act.time}</span>
-      <span className="dp-icon">{act.icon}</span>
-      <span className="dp-text">{act.text}</span>
-      <button className="btn btn-icon btn-xs" onClick={()=>setEd(true)}>✏️</button>
-      <button className="btn btn-icon btn-xs" onClick={onDel}>🗑️</button>
+    <div className="dp-tl-row">
+      <div className="dp-tl-dot" style={{color:dotColor}}/>
+      <span className="dp-tl-time">{act.time}</span>
+      <span className="dp-tl-icon">{act.icon}</span>
+      <span className="dp-tl-text">{act.text}</span>
+      <div className="dp-tl-actions">
+        <button className="btn btn-icon btn-xs" onClick={()=>setEd(true)}>✏️</button>
+        <button className="btn btn-icon btn-xs" onClick={onDel}>🗑️</button>
+      </div>
     </div>
   );
 }
