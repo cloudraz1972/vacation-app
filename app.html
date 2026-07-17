@@ -1117,7 +1117,7 @@ function downloadICS(vac, method='PUBLISH') {
   URL.revokeObjectURL(url);
 }
 
-function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted}) {
+function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted,onGoToPlanner}) {
   const [open,setOpen]=useState(highlighted||false);
   const [tab,setTab]=useState('expenses'); // 'expenses' | 'travelers'
   const [ed,setEd]=useState(false);
@@ -1167,7 +1167,7 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted}) {
               </div>
             ):(
               <>
-                <span className="vname">{v.name}</span>
+                <span className="vname" style={onGoToPlanner&&['planned','paid','work'].includes(v.type)?{cursor:'pointer',color:'var(--blue)',textDecoration:'underline'}:{}} onClick={onGoToPlanner&&['planned','paid','work'].includes(v.type)?e=>{e.stopPropagation();onGoToPlanner(v.id);}:undefined}>{v.name}</span>
                 <span className="type-badge" style={{background:COLORS[v.type]}}>{TYPE_LABELS[v.type]}</span>
                 {v.countryName&&<span className="vcountry">🌍 {v.countryName}</span>}
                 {v.composition&&<span className="vcountry">👥 {v.composition}</span>}
@@ -1296,7 +1296,7 @@ function AddVacManualModal({onClose,onSave}) {
   );
 }
 
-function VacationsPage({focusVacId, onClearFocus}) {
+function VacationsPage({focusVacId, onClearFocus, onGoToPlanner}) {
   const {state,dispatch}=useStore();
   const curYear=String(new Date().getFullYear());
   const [types,setTypes]=useState(new Set(['planned','paid']));
@@ -1348,7 +1348,7 @@ function VacationsPage({focusVacId, onClearFocus}) {
       <div className="vac-list">
         {list.length===0
           ?<div className="empty">אין חופשות להצגה. לחץ + הוסף חופשה או סמן תאריכים בלוח השנה.</div>
-          :list.map(v=><VacCard key={v.id} v={v} cats={state.cats} dispatch={dispatch} allTravelers={state.travelers} focusRef={v.id===focusVacId?focusRef:null} highlighted={v.id===focusVacId}/>)
+          :list.map(v=><VacCard key={v.id} v={v} cats={state.cats} dispatch={dispatch} allTravelers={state.travelers} focusRef={v.id===focusVacId?focusRef:null} highlighted={v.id===focusVacId} onGoToPlanner={onGoToPlanner}/>)
         }
       </div>
       {addModal&&<AddVacManualModal onClose={()=>setAddModal(false)} onSave={vac=>{dispatch({t:'ADD_VAC',v:vac});setAddModal(false);}}/>}
@@ -1949,7 +1949,7 @@ function TravelersPage() {
 // ── Daily Planner ──────────────────────────────────────────────────────────
 const ACTIVITY_ICONS = ['🏨','✈️','🚗','🚢','🍽️','🎡','🏖️','🏛️','🛍️','🎭','⛪','🏔️','🤿','🎪','🚶','🚕','🎠','🧳','📸','🎶','🏊','⚽','🎯','💊','🛒','☕','🍕','🍦','🎬','🌅'];
 
-function DailyPlannerPage() {
+function DailyPlannerPage({plannerVacId}) {
   const {state} = useStore();
   const [itinerary, setItinerary] = useState({}); // {dateStr: [{id,time,icon,text}]}
   const [loaded, setLoaded] = useState(false);
@@ -1965,7 +1965,13 @@ function DailyPlannerPage() {
   const years = useMemo(()=>[...new Set(allVacs.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a), [allVacs]);
   const [yearFilter, setYearFilter] = useState(()=>String(new Date().getFullYear()));
   const vacs = useMemo(()=>allVacs.filter(v=>!yearFilter||v.startDate.startsWith(yearFilter)), [allVacs,yearFilter]);
-  const [selVacId, setSelVacId] = useState(null);
+  const [selVacId, setSelVacId] = useState(plannerVacId||null);
+  // אם הגענו מקישור חופשה — ודא שהשנה מסוננת נכון
+  useEffect(()=>{
+    if(!plannerVacId) return;
+    const vac = allVacs.find(v=>v.id===plannerVacId);
+    if(vac){ setYearFilter(vac.startDate.slice(0,4)); setSelVacId(plannerVacId); setSelDay(null); }
+  },[plannerVacId]);
   const selVac = (selVacId && vacs.find(v=>v.id===selVacId)) || vacs[0] || null;
 
   // ימים של החופשה הנבחרת
@@ -2183,9 +2189,11 @@ function App() {
   const [user,setUser]=useState(undefined);
   const [navOpen,setNavOpen]=useState(window.innerWidth>640);
   const [focusVacId,setFocusVacId]=useState(null);
+  const [plannerVacId,setPlannerVacId]=useState(null);
   const Page={'/calendar':CalendarPage,'/planner':DailyPlannerPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/dashboard':DashboardPage,'/travelers':TravelersPage,'/settings':SettingsPage}[route]||CalendarPage;
   function goToVac(id){setFocusVacId(id);setRoute('/vacations');}
   function clearFocus(){setFocusVacId(null);}
+  function goToPlanner(id){setPlannerVacId(id);setRoute('/planner');}
 
   useEffect(()=>{
     return auth.onAuthStateChanged(u=>setUser(u||null));
@@ -2205,7 +2213,7 @@ function App() {
       <Nav route={route} setRoute={setRoute} user={user} open={navOpen} setOpen={setNavOpen}/>
       <main className={`main${(!isMobile&&!navOpen)?' nav-collapsed':''}`}
             style={!isMobile&&navOpen?{}:{marginRight:0}}>
-        <Page onGoToVac={goToVac} focusVacId={focusVacId} onClearFocus={clearFocus}/>
+        <Page onGoToVac={goToVac} focusVacId={focusVacId} onClearFocus={clearFocus} onGoToPlanner={goToPlanner} plannerVacId={plannerVacId}/>
       </main>
     </StoreProvider>
   );
