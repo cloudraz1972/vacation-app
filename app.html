@@ -326,14 +326,12 @@ function fmtDate(d) { if (!d) return ''; const [y,m,day] = d.split('-'); return 
 function numFmt(n) { return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 
 function getDayStyle(types) {
-  const s = types.has('school');
-  const VAC_PRIORITY = ['health','paid','planned','closed','work'];
-  const vacType = VAC_PRIORITY.find(t => t !== 'school' && types.has(t)) || null;
-  const vacColor = vacType ? COLORS[vacType] : null;
-  if (s && vacColor) return { background: `linear-gradient(135deg,${COLORS.school} 50%,${vacColor} 50%)` };
-  if (s) return { backgroundColor: COLORS.school };
-  if (vacColor) return { backgroundColor: vacColor };
-  return {};
+  const PRIORITY = ['health','paid','planned','work','closed','school'];
+  const present = PRIORITY.filter(t => types.has(t));
+  if (present.length === 0) return {};
+  if (present.length === 1) return { backgroundColor: COLORS[present[0]] };
+  // שני סוגים שונים — גרדיאנט אלכסוני: הראשון בעדיפות בפינה ימין-למעלה
+  return { background: `linear-gradient(135deg,${COLORS[present[0]]} 50%,${COLORS[present[1]]} 50%)` };
 }
 
 function dateRange(a, b) {
