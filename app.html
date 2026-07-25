@@ -742,6 +742,7 @@ function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd, onGoTo
             <div style={{fontSize:11,color:'var(--text2)'}}>{fmtDate(v.startDate)} — {fmtDate(v.endDate)}</div>
           </div>
           <div className="day-popup-actions">
+            <button className="btn btn-icon btn-sm" title="הוסף/עדכן ביומן Outlook" onClick={()=>downloadICS(v,'PUBLISH')}>📅</button>
             <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>onEdit(v)}>✏️</button>
             <button className="btn btn-icon btn-sm" title="מחק" onClick={()=>onDelete(v)}>🗑️</button>
           </div>
