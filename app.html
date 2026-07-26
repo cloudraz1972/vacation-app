@@ -269,8 +269,8 @@ tr:hover td{background:#FAFAFA}
 const { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext, useReducer } = React;
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const COLORS = { school:'#3B82F6', planned:'#FCD34D', paid:'#10B981', health:'#1E1E1E', closed:'#EF4444', work:'#6B7280' };
-const TYPE_LABELS = { school:'חופשת בית ספר', planned:'מתוכננת', paid:'משולמת', health:'בריאות', closed:'יומן סגור', work:'נסיעת עבודה' };
+const COLORS = { school:'#3B82F6', planned:'#FCD34D', paid:'#10B981', health:'#1E1E1E', closed:'#EF4444', work:'#6B7280', note:'#F97316' };
+const TYPE_LABELS = { school:'חופשת בית ספר', planned:'מתוכננת', paid:'משולמת', health:'בריאות', closed:'יומן סגור', work:'נסיעת עבודה', note:'לעדכון בלבד' };
 const VACATION_TYPES = ['school','planned','paid']; // types that appear on map/expenses
 const HEB_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const HEB_DAYS = ['א','ב','ג','ד','ה','ו','ש'];
@@ -326,7 +326,7 @@ function fmtDate(d) { if (!d) return ''; const [y,m,day] = d.split('-'); return 
 function numFmt(n) { return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 
 function getDayStyle(types) {
-  const PRIORITY = ['health','paid','planned','work','closed','school'];
+  const PRIORITY = ['health','paid','planned','work','note','closed','school'];
   const present = PRIORITY.filter(t => types.has(t));
   if (present.length === 0) return {};
   if (present.length === 1) return { backgroundColor: COLORS[present[0]] };
