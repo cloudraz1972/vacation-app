@@ -319,6 +319,7 @@ const COUNTRIES = [
 const numToCountry = Object.fromEntries(COUNTRIES.map(c => [c.num, c]));
 
 const DEFAULT_CATS = ['טיסות','מלון','אוכל','אטרקציות','קניות','תחבורה','ביטוח','אחר'];
+const DEFAULT_DOC_TYPES = ['רישיון נהיגה','רישיון נהיגה בינלאומי','רישיון משיט','תעודת זהות','ויזה','כרטיס חיסונים','רישיון טייס','אחר'];
 
 function genId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
@@ -364,7 +365,7 @@ function dateRange(a, b) {
 // ── Store ──────────────────────────────────────────────────────────────────
 const Ctx = createContext(null);
 const SKEY = 'vacation-app-v2';
-const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], travelers: [], anthropicKey: '' };
+const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], docTypes: [...DEFAULT_DOC_TYPES], travelers: [], anthropicKey: '' };
 
 function reducer(s, a) {
   switch(a.t) {
@@ -378,6 +379,9 @@ function reducer(s, a) {
     case 'ADD_CAT': return s.cats.includes(a.n) ? s : {...s, cats:[...s.cats,a.n]};
     case 'REN_CAT': return {...s, cats:s.cats.map(c=>c===a.o?a.n:c)};
     case 'DEL_CAT': return {...s, cats:s.cats.filter(c=>c!==a.n)};
+    case 'ADD_DOC_TYPE': return (s.docTypes||[]).includes(a.n) ? s : {...s, docTypes:[...(s.docTypes||[]),a.n]};
+    case 'REN_DOC_TYPE': return {...s, docTypes:(s.docTypes||[]).map(c=>c===a.o?a.n:c)};
+    case 'DEL_DOC_TYPE': return {...s, docTypes:(s.docTypes||[]).filter(c=>c!==a.n)};
     case 'LOAD': return {...initState,...a.s,travelers:s.travelers};
     case 'SET_ANTHROPIC_KEY': return {...s, anthropicKey:a.key};
     case 'LOAD_TRAVELERS': return {...s, travelers:a.travelers||[]};
@@ -1523,8 +1527,13 @@ function SettingsPage() {
   const [newN,setNewN]=useState('');
   const [ed,setEd]=useState(null);
   const [edV,setEdV]=useState('');
+  const [newDt,setNewDt]=useState('');
+  const [ed2,setEd2]=useState(null);
+  const [edV2,setEdV2]=useState('');
   function add(){const n=newN.trim();if(!n)return;dispatch({t:'ADD_CAT',n});setNewN('');}
   function ren(o){const n=edV.trim();if(!n||n===o){setEd(null);return;}dispatch({t:'REN_CAT',o,n});setEd(null);}
+  function addDt(){const n=newDt.trim();if(!n)return;dispatch({t:'ADD_DOC_TYPE',n});setNewDt('');}
+  function renDt(o){const n=edV2.trim();if(!n||n===o){setEd2(null);return;}dispatch({t:'REN_DOC_TYPE',o,n});setEd2(null);}
   return (
     <div className="page">
       <div className="page-header"><h1 className="page-title">הגדרות</h1></div>
@@ -1556,6 +1565,36 @@ function SettingsPage() {
         <div className="add-cat-form">
           <input className="input" value={newN} onChange={e=>setNewN(e.target.value)} onKeyDown={e=>e.key==='Enter'&&add()} placeholder="שם קטגוריה חדשה"/>
           <button className="btn btn-primary" onClick={add}>+ הוסף</button>
+        </div>
+      </div>
+      <div className="settings-sec">
+        <h2>סוגי תעודות</h2>
+        <p className="settings-hint">ניהול רשימת סוגי תעודות לנוסעים (רישיון נהיגה, ויזה וכו')</p>
+        <div className="cat-items">
+          {(state.docTypes||DEFAULT_DOC_TYPES).map(dt=>(
+            <div key={dt} className="cat-item">
+              {ed2===dt?(
+                <>
+                  <input className="input input-sm" value={edV2} onChange={e=>setEdV2(e.target.value)}
+                    onKeyDown={e=>{if(e.key==='Enter')renDt(dt);if(e.key==='Escape')setEd2(null);}} autoFocus/>
+                  <button className="btn btn-primary btn-sm" onClick={()=>renDt(dt)}>שמור</button>
+                  <button className="btn btn-secondary btn-sm" onClick={()=>setEd2(null)}>ביטול</button>
+                </>
+              ):(
+                <>
+                  <span className="cat-item-name">{dt}</span>
+                  <div className="cat-item-acts">
+                    <button className="btn btn-icon btn-sm" onClick={()=>{setEd2(dt);setEdV2(dt);}}>✏️</button>
+                    <button className="btn btn-danger btn-sm" onClick={()=>dispatch({t:'DEL_DOC_TYPE',n:dt})}>🗑️</button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="add-cat-form">
+          <input className="input" value={newDt} onChange={e=>setNewDt(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addDt()} placeholder="סוג תעודה חדש"/>
+          <button className="btn btn-primary" onClick={addDt}>+ הוסף</button>
         </div>
       </div>
       <div className="settings-sec">
@@ -1870,9 +1909,110 @@ function FFModal({ff, onClose, onSave}) {
   );
 }
 
+async function uploadDocFile(file, docId, onProgress) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const ref = storage.ref(`doc-files/${docId}.${ext}`);
+  return new Promise((resolve, reject) => {
+    const task = ref.put(file);
+    const timeout = setTimeout(()=>{ task.cancel(); reject(new Error('timeout — העלאה ארכה יותר מ-120 שניות')); }, 120000);
+    task.on('state_changed',
+      snap => { if(onProgress) onProgress(Math.round(snap.bytesTransferred/snap.totalBytes*100)); },
+      err => { clearTimeout(timeout); reject(err); },
+      async () => {
+        clearTimeout(timeout);
+        try { resolve(await ref.getDownloadURL()); }
+        catch(e) { reject(e); }
+      }
+    );
+  });
+}
+async function deleteDocFile(docId) {
+  for(const ext of ['jpg','jpeg','png','gif','webp','pdf']) {
+    try { await storage.ref(`doc-files/${docId}.${ext}`).delete(); break; } catch(e){}
+  }
+}
+
+function DocModal({doc, docTypes, onClose, onSave}) {
+  const blank = {type:'',number:'',expiry:'',fileUrl:''};
+  const [f, setF] = useState(doc ? {type:doc.type||'',number:doc.number||'',expiry:doc.expiry||'',fileUrl:doc.fileUrl||''} : blank);
+  const [uploading, setUploading] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
+  const [preview, setPreview] = useState(doc?.fileUrl||'');
+  const [err, setErr] = useState('');
+  const [progress, setProgress] = useState(null);
+  const fileRef = useRef();
+
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    setPendingFile(file);
+    setPreview(file.type.startsWith('image/') ? URL.createObjectURL(file) : 'pdf');
+  }
+
+  async function handleSave() {
+    if(!f.type) return;
+    setUploading(true); setErr(''); setProgress(null);
+    try {
+      let fileUrl = f.fileUrl;
+      if(pendingFile) {
+        const id = doc?.id || genId();
+        fileUrl = await uploadDocFile(pendingFile, id, pct => setProgress(pct));
+        onSave({...f, fileUrl}, id);
+      } else {
+        onSave(f, null);
+      }
+    } catch(e) {
+      setErr(e.message || 'שגיאה לא ידועה');
+    } finally {
+      setUploading(false); setProgress(null);
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>{doc ? 'עריכת תעודה' : 'הוסף תעודה'}</h2>
+        <div className="fg"><label>סוג תעודה</label>
+          <select className="input" value={f.type} onChange={e=>setF({...f,type:e.target.value})}>
+            <option value="">בחר סוג...</option>
+            {(docTypes||[]).map(dt=><option key={dt} value={dt}>{dt}</option>)}
+          </select>
+        </div>
+        <div className="fg"><label>מספר תעודה</label><input className="input" dir="ltr" value={f.number} onChange={e=>setF({...f,number:e.target.value})}/></div>
+        <div className="fg"><label>תוקף עד</label><input className="input" type="date" value={f.expiry} onChange={e=>setF({...f,expiry:e.target.value})}/></div>
+        <div className="fg">
+          <label>צילום תעודה</label>
+          <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:'none'}} onChange={handleFile}/>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <button className="btn btn-secondary" onClick={()=>fileRef.current.click()} disabled={uploading}>
+              {preview ? '🔄 החלף קובץ' : '📎 צרף קובץ'}
+            </button>
+            {preview && <button className="btn btn-secondary" style={{color:'var(--red)'}} onClick={()=>{setPreview('');setPendingFile(null);setF({...f,fileUrl:''});}}>הסר</button>}
+          </div>
+          {preview && preview!=='pdf' && <img src={preview} alt="תעודה" style={{marginTop:8,maxWidth:'100%',maxHeight:180,borderRadius:6,border:'1px solid var(--border)'}}/>}
+          {preview==='pdf' && <div style={{marginTop:8,fontSize:13,color:'var(--green)'}}>✅ PDF מצורף</div>}
+        </div>
+        {progress!==null && <div style={{marginTop:8}}>
+          <div style={{background:'var(--border)',borderRadius:4,height:6}}>
+            <div style={{background:'var(--blue)',borderRadius:4,height:6,width:progress+'%',transition:'width .3s'}}/>
+          </div>
+          <div style={{fontSize:12,color:'var(--text2)',marginTop:4}}>מעלה... {progress}%</div>
+        </div>}
+        {err && <div style={{color:'var(--red)',fontSize:13,marginTop:8}}>⚠️ {err}</div>}
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onClose} disabled={uploading}>ביטול</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={uploading||!f.type}>{uploading?'מעלה...':'שמור'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TravelerCard({t, dispatch}) {
-  const [ppModal, setPpModal] = useState(null); // null | {mode:'add'|'edit', pp?}
+  const {state} = useStore();
+  const [ppModal, setPpModal] = useState(null);
   const [ffModal, setFfModal] = useState(null);
+  const [docModal, setDocModal] = useState(null);
   const [editModal, setEditModal] = useState(false);
 
   function savePassport(pp, forcedId) {
@@ -1901,6 +2041,22 @@ function TravelerCard({t, dispatch}) {
   function delFF(id) {
     if(!confirm('למחוק כרטיס זה?')) return;
     dispatch({t:'UPD_TRAVELER', id:t.id, u:{frequentFlyer:(t.frequentFlyer||[]).filter(f=>f.id!==id)}});
+  }
+  function saveDoc(doc, forcedId) {
+    let docs;
+    if(docModal.doc) {
+      docs = (t.docs||[]).map(d=>d.id===docModal.doc.id?{...d,...doc}:d);
+    } else {
+      const id = forcedId || genId();
+      docs = [...(t.docs||[]), {...doc, id}];
+    }
+    dispatch({t:'UPD_TRAVELER', id:t.id, u:{docs}});
+    setDocModal(null);
+  }
+  function delDoc(id) {
+    if(!confirm('למחוק תעודה זו?')) return;
+    deleteDocFile(id);
+    dispatch({t:'UPD_TRAVELER', id:t.id, u:{docs:(t.docs||[]).filter(d=>d.id!==id)}});
   }
   const age = t.birthDate ? Math.floor((new Date()-new Date(t.birthDate))/(365.25*24*3600*1000)) : null;
 
@@ -1948,10 +2104,28 @@ function TravelerCard({t, dispatch}) {
           ))}
           {(t.frequentFlyer||[]).length===0 && <span className="titem-add" style={{color:'var(--text2)'}}>אין כרטיסי נוסע מתמיד</span>}
         </div>}
+        <div className="tsec">
+          <div className="tsec-title">
+            <span>תעודות נוספות</span>
+            <span className="titem-add" onClick={()=>setDocModal({doc:null})}>+ הוסף</span>
+          </div>
+          {(t.docs||[]).map(d=>(
+            <div key={d.id} className="titem">
+              <span className="titem-text">
+                {d.type}{d.number ? ` · ${d.number}` : ''}{d.expiry ? ` · ${fmtDate(d.expiry)}` : ''}
+              </span>
+              {d.fileUrl && <button className="btn btn-icon btn-sm" title="פתח קובץ" onClick={()=>window.open(d.fileUrl,'_blank')}>📄</button>}
+              <button className="btn btn-icon btn-sm" onClick={()=>setDocModal({doc:d})}>✏️</button>
+              <button className="btn btn-icon btn-sm" onClick={()=>delDoc(d.id)}>🗑️</button>
+            </div>
+          ))}
+          {(t.docs||[]).length===0 && <span style={{fontSize:13,color:'var(--text2)'}}>אין תעודות נוספות</span>}
+        </div>
       </div>
       {editModal && <TravelerModal traveler={t} onClose={()=>setEditModal(false)} onSave={u=>{dispatch({t:'UPD_TRAVELER',id:t.id,u});setEditModal(false);}}/>}
       {ppModal && <PassportModal passport={ppModal.pp} onClose={()=>setPpModal(null)} onSave={savePassport}/>}
       {ffModal && <FFModal ff={ffModal.ff} onClose={()=>setFfModal(null)} onSave={saveFF}/>}
+      {docModal && <DocModal doc={docModal.doc} docTypes={state.docTypes||DEFAULT_DOC_TYPES} onClose={()=>setDocModal(null)} onSave={saveDoc}/>}
     </div>
   );
 }
