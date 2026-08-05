@@ -396,21 +396,17 @@ function StoreProvider({children}) {
   const [state, dispatch] = useReducer(reducer, initState);
   const [loaded, setLoaded] = useState(false);
   const [travelersLoaded, setTravelersLoaded] = useState(false);
-  const isRemoteUpdate = useRef(false);
   const saveTimer = useRef(null);
   const travSaveTimer = useRef(null);
   const travelersRef = useRef([]);
 
-  // real-time sync למצב הראשי בלבד
   useEffect(()=>{
-    const unsub = STATE_DOC.onSnapshot(doc=>{
-      if(doc.exists){ isRemoteUpdate.current=true; dispatch({t:'LOAD', s:doc.data()}); }
+    STATE_DOC.get().then(doc=>{
+      if(doc.exists) dispatch({t:'LOAD', s:doc.data()});
       setLoaded(true);
-    }, ()=>setLoaded(true));
-    return unsub;
+    }).catch(()=>setLoaded(true));
   },[]);
 
-  // טעינה חד-פעמית של נוסעים (ללא subscription)
   useEffect(()=>{
     TRAVELERS_DOC.get().then(doc=>{
       const list = doc.exists ? (doc.data().travelers||[]) : [];
@@ -420,10 +416,8 @@ function StoreProvider({children}) {
     }).catch(()=>setTravelersLoaded(true));
   },[]);
 
-  // שמור mainState כשמשתנה
   useEffect(()=>{
     if(!loaded) return;
-    if(isRemoteUpdate.current){ isRemoteUpdate.current=false; return; }
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async ()=>{
       try {
