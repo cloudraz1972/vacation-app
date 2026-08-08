@@ -757,6 +757,7 @@ function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd, onGoTo
           <div style={{flex:1}}>
             <div className="day-popup-name" style={{cursor:onGoToVac?'pointer':undefined,color:onGoToVac?'var(--blue)':undefined,textDecoration:onGoToVac?'underline':undefined}} onClick={onGoToVac?()=>onGoToVac(v.id):undefined}>{v.name}</div>
             <div style={{fontSize:11,color:'var(--text2)'}}>{fmtDate(v.startDate)} — {fmtDate(v.endDate)}</div>
+            {v.expenses&&v.expenses.length>0&&<div style={{fontSize:11,color:'var(--text2)',marginTop:2}}>💰 {v.expenses.reduce((s,e)=>s+(e.amountILS||0),0).toLocaleString('he-IL',{maximumFractionDigits:0})} ₪</div>}
           </div>
           <div className="day-popup-actions">
             <button className="btn btn-icon btn-sm" title="הוסף/עדכן ביומן Outlook" onClick={()=>downloadICS(v,'PUBLISH')}>📅</button>
