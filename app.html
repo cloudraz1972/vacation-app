@@ -203,6 +203,14 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .exp-title{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text2)}
 .exp-total{text-align:left;margin-top:10px;font-size:14px;color:var(--text2)}
 .tbl-wrap{overflow-x:auto}
+.exp-mob-btn{display:none}
+@media(max-width:700px){.exp-mob-btn{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px}}
+.exp-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:flex-end;justify-content:center}
+.exp-modal{background:var(--card);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:24px 20px 32px;direction:rtl;max-height:90vh;overflow-y:auto}
+.exp-modal-title{font-size:16px;font-weight:700;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
+.exp-modal-field{margin-bottom:14px}
+.exp-modal-field label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
+.exp-modal-field .input{width:100%;box-sizing:border-box}
 table{width:100%;border-collapse:collapse;font-size:13px;direction:rtl}
 th{text-align:right;padding:8px 10px;font-weight:600;color:var(--text2);border-bottom:2px solid var(--border);white-space:nowrap;background:var(--bg)}
 td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -1101,6 +1109,71 @@ function ExpRow({exp,cats,onUpdate,onDelete}) {
   );
 }
 
+function AddExpModal({cats,onAdd,onClose}) {
+  const [f,setF]=useState({category:cats[0]||'',amount:'',currency:'USD',exchangeRate:'',description:'',url:''});
+  const [rateLoading,setRateLoading]=useState(false);
+  async function handleCurrencyChange(code){
+    setF(p=>({...p,currency:code,exchangeRate:''}));
+    if(code==='ILS') return;
+    setRateLoading(true);
+    const rate=await getILSRate(code);
+    setRateLoading(false);
+    if(rate) setF(p=>({...p,currency:code,exchangeRate:String(rate)}));
+  }
+  useEffect(()=>{
+    if(f.currency!=='ILS'&&!f.exchangeRate) handleCurrencyChange(f.currency);
+  },[]);
+  function add(){
+    if(!f.amount) return;
+    const r=f.currency==='ILS'?1:parseFloat(f.exchangeRate||1);
+    onAdd({...f,exchangeRate:r,amountILS:parseFloat(f.amount)*r});
+    onClose();
+  }
+  const ils = f.amount?(f.currency==='ILS'?parseFloat(f.amount):(parseFloat(f.amount)*parseFloat(f.exchangeRate||1))):0;
+  return (
+    <div className="exp-modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="exp-modal">
+        <div className="exp-modal-title">
+          <span>הוספת הוצאה</span>
+          <button className="btn btn-icon" onClick={onClose}>✕</button>
+        </div>
+        <div className="exp-modal-field">
+          <label>קטגוריה</label>
+          <select className="input" value={f.category} onChange={e=>setF({...f,category:e.target.value})}>
+            {cats.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="exp-modal-field">
+          <label>סכום</label>
+          <input className="input" type="number" inputMode="decimal" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})} placeholder="0"/>
+        </div>
+        <div className="exp-modal-field">
+          <label>מטבע</label>
+          <select className="input" value={f.currency} onChange={e=>handleCurrencyChange(e.target.value)}>
+            {CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.code} — {c.label||c.code}</option>)}
+          </select>
+        </div>
+        {f.currency!=='ILS'&&(
+          <div className="exp-modal-field">
+            <label>שער ל-₪</label>
+            <input className="input" type="number" step="0.01" inputMode="decimal" value={f.exchangeRate} onChange={e=>setF({...f,exchangeRate:e.target.value})} placeholder={rateLoading?'טוען…':'שער'}/>
+          </div>
+        )}
+        {ils>0&&<div style={{background:'var(--bg)',borderRadius:8,padding:'8px 12px',marginBottom:14,fontSize:14,fontWeight:700,color:'var(--blue)'}}>סה"כ בשקלים: {ils.toFixed(2)} ₪</div>}
+        <div className="exp-modal-field">
+          <label>תיאור</label>
+          <input className="input" value={f.description} onChange={e=>setF({...f,description:e.target.value})} placeholder="תיאור ההוצאה"/>
+        </div>
+        <div className="exp-modal-field">
+          <label>קישור</label>
+          <input className="input" dir="ltr" value={f.url} onChange={e=>setF({...f,url:e.target.value})} placeholder="https://..."/>
+        </div>
+        <button className="btn btn-primary" style={{width:'100%',padding:'12px'}} onClick={add}>+ הוסף הוצאה</button>
+      </div>
+    </div>
+  );
+}
+
 function AddExpRow({cats,onAdd}) {
   const [f,setF]=useState({category:cats[0]||'',amount:'',currency:'USD',exchangeRate:'',description:''});
   const [rateLoading,setRateLoading]=useState(false);
@@ -1166,7 +1239,8 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted,onGoToPlanne
   const [open,setOpen]=useState(highlighted||false);
   const [tab,setTab]=useState('expenses'); // 'expenses' | 'travelers'
   const [ed,setEd]=useState(false);
-  const [expSort,setExpSort]=useState({col:null,dir:1}); // col: 'category'|'amountILS'|'rate'|'currency'|'description'
+  const [expSort,setExpSort]=useState({col:null,dir:1});
+  const [showAddExpModal,setShowAddExpModal]=useState(false);
   function toggleSort(col){setExpSort(s=>s.col===col?{col,dir:-s.dir}:{col,dir:1});}
   function SortTh({col,children}){
     const active=expSort.col===col;
@@ -1243,6 +1317,8 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted,onGoToPlanne
           </div>
           {tab==='expenses'&&(
             <>
+              {showAddExpModal&&<AddExpModal cats={cats} onAdd={e=>dispatch({t:'ADD_EXP',vid:v.id,e})} onClose={()=>setShowAddExpModal(false)}/>}
+              <button className="btn btn-primary btn-sm exp-mob-btn" onClick={()=>setShowAddExpModal(true)}>➕ הוסף הוצאה</button>
               <div className="tbl-wrap">
                 <table>
                   <thead><tr><SortTh col="category">קטגוריה</SortTh><SortTh col="amount">סכום</SortTh><SortTh col="rate">שער</SortTh><SortTh col="currency">מטבע</SortTh><SortTh col="amountILS">בשקלים</SortTh><SortTh col="description">תיאור</SortTh><th>קישור</th><th></th></tr></thead>
