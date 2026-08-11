@@ -2100,7 +2100,7 @@ function VacDocsTab({vacId, docs, dispatch}) {
           </div>
           {uploading&&<div style={{fontSize:13,color:'var(--blue)'}}>מעלה... {progress}%</div>}
           {err&&<div style={{color:'#EF4444',fontSize:13}}>{err}</div>}
-          <div style={{display:'flex',gap:8'}}>
+          <div style={{display:'flex',gap:8}}>
             <button className="btn btn-primary btn-sm" onClick={handleAdd} disabled={uploading||!addForm.label||(!addForm.url&&!addForm.file)}>שמור</button>
             <button className="btn btn-secondary btn-sm" onClick={()=>{setShowAdd(false);setErr('');}} disabled={uploading}>ביטול</button>
           </div>
