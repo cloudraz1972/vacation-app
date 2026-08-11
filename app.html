@@ -389,6 +389,9 @@ function reducer(s, a) {
     case 'ADD_EXP': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, expenses:[...v.expenses,{...a.e,id:genId()}]} : v)};
     case 'UPD_EXP': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, expenses:v.expenses.map(e => e.id===a.eid?{...e,...a.u}:e)} : v)};
     case 'DEL_EXP': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, expenses:v.expenses.filter(e=>e.id!==a.eid)} : v)};
+    case 'ADD_VAC_DOC': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, vacDocs:[...(v.vacDocs||[]),{...a.d,id:genId()}]} : v)};
+    case 'UPD_VAC_DOC': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, vacDocs:(v.vacDocs||[]).map(d=>d.id===a.did?{...d,...a.u}:d)} : v)};
+    case 'DEL_VAC_DOC': return {...s, vacations: s.vacations.map(v => v.id===a.vid ? {...v, vacDocs:(v.vacDocs||[]).filter(d=>d.id!==a.did)} : v)};
     case 'ADD_CAT': return s.cats.includes(a.n) ? s : {...s, cats:[...s.cats,a.n]};
     case 'REN_CAT': return {...s, cats:s.cats.map(c=>c===a.o?a.n:c)};
     case 'DEL_CAT': return {...s, cats:s.cats.filter(c=>c!==a.n)};
@@ -1319,6 +1322,7 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted,onGoToPlanne
           <div className="vac-tabs">
             <button className={`vac-tab${tab==='expenses'?' active':''}`} onClick={()=>setTab('expenses')}>💰 הוצאות {total>0&&`(${numFmt(total)} ₪)`}</button>
             <button className={`vac-tab${tab==='travelers'?' active':''}`} onClick={()=>setTab('travelers')}>👤 נוסעים {(v.travelers||[]).length>0&&`(${(v.travelers||[]).length})`}</button>
+            <button className={`vac-tab${tab==='vacdocs'?' active':''}`} onClick={()=>setTab('vacdocs')}>📁 מסמכים {(v.vacDocs||[]).length>0&&`(${(v.vacDocs||[]).length})`}</button>
           </div>
           {tab==='expenses'&&(
             <>
@@ -1343,6 +1347,9 @@ function VacCard({v,cats,dispatch,allTravelers,focusRef,highlighted,onGoToPlanne
               </div>
               {total>0&&<div className="exp-total">סה"כ: <strong>{total.toFixed(2)} ₪</strong></div>}
             </>
+          )}
+          {tab==='vacdocs'&&(
+            <VacDocsTab vacId={v.id} docs={v.vacDocs||[]} dispatch={dispatch}/>
           )}
           {tab==='travelers'&&(
             <div style={{padding:'12px 0'}}>
@@ -2001,6 +2008,107 @@ async function uploadDocFile(file, docId, onProgress) {
       }
     );
   });
+}
+
+async function uploadVacDoc(file, docId, onProgress) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const ref = storage.ref(`vac-docs/${docId}.${ext}`);
+  return new Promise((resolve, reject) => {
+    const task = ref.put(file);
+    const timeout = setTimeout(()=>{ task.cancel(); reject(new Error('timeout')); }, 120000);
+    task.on('state_changed',
+      snap => { if(onProgress) onProgress(Math.round(snap.bytesTransferred/snap.totalBytes*100)); },
+      err => { clearTimeout(timeout); reject(err); },
+      async () => { clearTimeout(timeout); try { resolve(await ref.getDownloadURL()); } catch(e){ reject(e); } }
+    );
+  });
+}
+
+const VAC_DOC_SUBTYPES = [
+  {key:'flight', label:'כרטיס טיסה', icon:'✈️'},
+  {key:'boarding', label:'בורדינג פס', icon:'🎫'},
+  {key:'hotel', label:'הזמנת מלון', icon:'🏨'},
+  {key:'car', label:'ווצ\'ר רכב', icon:'🚗'},
+  {key:'insurance', label:'ביטוח נסיעות', icon:'🛡️'},
+  {key:'other', label:'אחר', icon:'📄'},
+];
+
+function VacDocsTab({vacId, docs, dispatch}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const fileRef = useRef();
+  const [addForm, setAddForm] = useState({subtype:'flight', label:'', url:'', file:null});
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [err, setErr] = useState('');
+
+  async function handleAdd() {
+    if(!addForm.label) return;
+    if(addForm.file) {
+      setUploading(true); setErr('');
+      try {
+        const id = genId();
+        const url = await uploadVacDoc(addForm.file, id, pct=>setProgress(pct));
+        dispatch({t:'ADD_VAC_DOC', vid:vacId, d:{subtype:addForm.subtype, label:addForm.label, fileUrl:url, fileName:addForm.file.name}});
+        setShowAdd(false); setAddForm({subtype:'flight',label:'',url:'',file:null});
+      } catch(e){ setErr(e.message); }
+      finally{ setUploading(false); setProgress(0); }
+    } else if(addForm.url) {
+      dispatch({t:'ADD_VAC_DOC', vid:vacId, d:{subtype:addForm.subtype, label:addForm.label, url:addForm.url}});
+      setShowAdd(false); setAddForm({subtype:'flight',label:'',url:'',file:null});
+    }
+  }
+
+  return (
+    <div style={{padding:'12px 0'}}>
+      {(docs||[]).map(d=>{
+        const st = VAC_DOC_SUBTYPES.find(s=>s.key===d.subtype)||VAC_DOC_SUBTYPES[5];
+        return (
+          <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 4px',borderBottom:'1px solid var(--border)'}}>
+            <span style={{fontSize:20}}>{st.icon}</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600,fontSize:14}}>{d.label}</div>
+              <div style={{fontSize:12,color:'var(--text2)'}}>{st.label}</div>
+            </div>
+            {(d.fileUrl||d.url)&&(
+              <a href={d.fileUrl||d.url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+                {d.fileUrl?'⬇️ פתח':'🔗 פתח'}
+              </a>
+            )}
+            <button className="btn btn-icon btn-sm" onClick={()=>dispatch({t:'DEL_VAC_DOC',vid:vacId,did:d.id})}>🗑️</button>
+          </div>
+        );
+      })}
+      {(docs||[]).length===0&&!showAdd&&<div style={{color:'var(--text2)',fontSize:13,padding:'8px 0'}}>אין מסמכים. לחץ הוסף להוספת כרטיס טיסה, לינק להזמנה ועוד.</div>}
+
+      {showAdd&&(
+        <div style={{background:'var(--bg)',borderRadius:10,padding:14,marginTop:12,display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {VAC_DOC_SUBTYPES.map(s=>(
+              <button key={s.key} className={`btn btn-sm ${addForm.subtype===s.key?'btn-primary':'btn-secondary'}`}
+                onClick={()=>setAddForm(f=>({...f,subtype:s.key}))}>{s.icon} {s.label}</button>
+            ))}
+          </div>
+          <input className="input" value={addForm.label} onChange={e=>setAddForm(f=>({...f,label:e.target.value}))} placeholder="שם המסמך (לדוג׳: El Al TLV→JFK)"/>
+          <input className="input" dir="ltr" value={addForm.url} onChange={e=>setAddForm(f=>({...f,url:e.target.value,file:null}))} placeholder="קישור (https://...) — או העלה קובץ למטה"/>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <button className="btn btn-secondary btn-sm" onClick={()=>fileRef.current.click()} disabled={uploading}>
+              📎 {addForm.file?addForm.file.name:'בחר קובץ'}
+            </button>
+            {addForm.file&&<button className="btn btn-icon btn-sm" onClick={()=>setAddForm(f=>({...f,file:null}))}>✕</button>}
+            <input ref={fileRef} type="file" style={{display:'none'}} accept=".pdf,.jpg,.jpeg,.png,.webp"
+              onChange={e=>{ if(e.target.files[0]) setAddForm(f=>({...f,file:e.target.files[0],url:''})); }}/>
+          </div>
+          {uploading&&<div style={{fontSize:13,color:'var(--blue)'}}>מעלה... {progress}%</div>}
+          {err&&<div style={{color:'#EF4444',fontSize:13}}>{err}</div>}
+          <div style={{display:'flex',gap:8'}}>
+            <button className="btn btn-primary btn-sm" onClick={handleAdd} disabled={uploading||!addForm.label||(!addForm.url&&!addForm.file)}>שמור</button>
+            <button className="btn btn-secondary btn-sm" onClick={()=>{setShowAdd(false);setErr('');}} disabled={uploading}>ביטול</button>
+          </div>
+        </div>
+      )}
+      {!showAdd&&<button className="btn btn-secondary btn-sm" style={{marginTop:10}} onClick={()=>setShowAdd(true)}>+ הוסף מסמך</button>}
+    </div>
+  );
 }
 async function deleteDocFile(docId) {
   for(const ext of ['jpg','jpeg','png','gif','webp','pdf']) {
