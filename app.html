@@ -880,9 +880,9 @@ function CalendarPage({onGoToVac}) {
     <div className="page">
       <div className="page-header">
         <div className="year-nav">
-          <button className="btn btn-icon" onClick={()=>dispatch({t:'SET_YEAR',year:year+1})}>›</button>
-          <h1 className="page-title">{year}</h1>
           <button className="btn btn-icon" onClick={()=>dispatch({t:'SET_YEAR',year:year-1})}>‹</button>
+          <h1 className="page-title">{year}</h1>
+          <button className="btn btn-icon" onClick={()=>dispatch({t:'SET_YEAR',year:year+1})}>›</button>
         </div>
         <div className="legend">
           {Object.entries(COLORS).map(([k,c])=>(
