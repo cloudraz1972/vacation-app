@@ -661,7 +661,7 @@ function isInRange(d, a, b) {
   return d>=lo && d<=hi;
 }
 
-function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover}) {
+function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover,dragState,dropDate,onDragStartVac,onDragOverDay,onDropDay,onDragEnd}) {
   const first = new Date(year,month,1);
   const days = new Date(year,month+1,0).getDate();
   const startDow = first.getDay();
@@ -676,8 +676,17 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover})
           if(!day) return <span key={`_${i}`}/>;
           const ds=`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
           const info=dayMap[ds];
-          const style=info?getDayStyle(info.types):{};
-          const hasColor=Object.keys(style).length>0;
+          // vacation that starts on this exact day (draggable handle)
+          const dragVac=info?.vacs.find(v=>v.startDate===ds&&v.type!=='school');
+          // drop zone feedback
+          let dropStyle={};
+          if(dragState&&ds===dropDate){
+            const occupied=info?.vacs.some(v=>v.id!==dragState.vacId);
+            dropStyle={background:occupied?'#FEF3C7':'#D1FAE5',outline:'2px solid '+(occupied?'#F59E0B':'#10B981'),outlineOffset:'-2px'};
+          }
+          const baseStyle=dragState?{}:(info?getDayStyle(info.types):{});
+          const style={...baseStyle,...dropStyle};
+          const hasColor=!dragState&&Object.keys(baseStyle).length>0;
           const inSel=isInRange(ds,selStart,hoverDate);
           const isStart=ds===selStart;
           const isToday=ds===today;
@@ -686,8 +695,13 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover})
           return (
             <span key={day}
               className={`day${hasColor?' colored':''}${inSel&&!isStart?' in-sel':''}${isStart?' sel-start':''}${isToday?' today':''}${info&&info.types.has('health')?' health-day':''}`}
-              style={style}
-              onClick={e=>onDayClick(ds,e)}
+              style={{...style,cursor:dragVac&&!dragState?'grab':undefined}}
+              draggable={!!dragVac&&!selStart}
+              onDragStart={dragVac&&!selStart?e=>onDragStartVac(dragVac,e):undefined}
+              onDragOver={dragState?e=>onDragOverDay(ds,e):undefined}
+              onDrop={dragState?()=>onDropDay(ds):undefined}
+              onDragEnd={onDragEnd}
+              onClick={e=>!dragState&&onDayClick(ds,e)}
               onMouseEnter={()=>onDayHover(ds)}
               title={info?info.vacs.map(v=>v.name).join(', '):''}
             >{day}{flag&&<span className="day-flag">{flag}</span>}</span>
@@ -876,6 +890,27 @@ function CalendarPage({onGoToVac}) {
   const [zoom, setZoom] = useState(100);
   const MONTH_ORDER = [0,3,6,9, 1,4,7,10, 2,5,8,11];
 
+  const [dragState, setDragState] = useState(null); // {vacId, durationDays}
+  const [dropDate, setDropDate] = useState(null);
+
+  function handleDragStartVac(vac, e) {
+    const dur = Math.round((new Date(vac.endDate)-new Date(vac.startDate))/(1000*60*60*24));
+    setDragState({vacId:vac.id, durationDays:dur});
+    e.dataTransfer.effectAllowed='move';
+  }
+  function handleDragOverDay(ds, e) {
+    e.preventDefault();
+    setDropDate(ds);
+  }
+  function handleDropDay(ds) {
+    if(!dragState) return;
+    const newStart=ds;
+    const newEnd=new Date(new Date(ds).getTime()+dragState.durationDays*86400000).toISOString().slice(0,10);
+    dispatch({t:'UPD_VAC',id:dragState.vacId,u:{startDate:newStart,endDate:newEnd}});
+    setDragState(null); setDropDate(null);
+  }
+  function handleDragEnd() { setDragState(null); setDropDate(null); }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -912,7 +947,10 @@ function CalendarPage({onGoToVac}) {
         {MONTH_ORDER.map(m=>(
           <MonthGrid key={m} year={year} month={m} dayMap={dayMap}
             selStart={selStart} hoverDate={hoverDate}
-            onDayClick={handleDayClick} onDayHover={ds=>selStart&&!pendingEnd&&setHoverDate(ds)}/>
+            onDayClick={handleDayClick} onDayHover={ds=>selStart&&!pendingEnd&&setHoverDate(ds)}
+            dragState={dragState} dropDate={dropDate}
+            onDragStartVac={handleDragStartVac} onDragOverDay={handleDragOverDay}
+            onDropDay={handleDropDay} onDragEnd={handleDragEnd}/>
         ))}
       </div>
       </div>
