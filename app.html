@@ -2040,6 +2040,7 @@ function VacDocsTab({vacId, docs, dispatch}) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
+  const [dragOver, setDragOver] = useState(false);
 
   async function handleAdd() {
     if(!addForm.label) return;
@@ -2090,11 +2091,17 @@ function VacDocsTab({vacId, docs, dispatch}) {
           </div>
           <input className="input" value={addForm.label} onChange={e=>setAddForm(f=>({...f,label:e.target.value}))} placeholder="שם המסמך (לדוג׳: El Al TLV→JFK)"/>
           <input className="input" dir="ltr" value={addForm.url} onChange={e=>setAddForm(f=>({...f,url:e.target.value,file:null}))} placeholder="קישור (https://...) — או העלה קובץ למטה"/>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <button className="btn btn-secondary btn-sm" onClick={()=>fileRef.current.click()} disabled={uploading}>
-              📎 {addForm.file?addForm.file.name:'בחר קובץ'}
-            </button>
-            {addForm.file&&<button className="btn btn-icon btn-sm" onClick={()=>setAddForm(f=>({...f,file:null}))}>✕</button>}
+          <div
+            style={{border:`2px dashed ${dragOver?'var(--blue)':'var(--border)}`,borderRadius:10,padding:'12px 16px',textAlign:'center',cursor:'pointer',background:dragOver?'#EFF6FF':'var(--bg)',transition:'all .15s'}}
+            onClick={()=>fileRef.current.click()}
+            onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+            onDragLeave={()=>setDragOver(false)}
+            onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)setAddForm(p=>({...p,file:f,url:''}));}}
+          >
+            {addForm.file
+              ? <span style={{fontSize:13}}>📎 {addForm.file.name} <button className="btn btn-icon btn-sm" style={{marginRight:6}} onClick={e=>{e.stopPropagation();setAddForm(f=>({...f,file:null}));}}>✕</button></span>
+              : <span style={{fontSize:13,color:'var(--text2)'}}>גרור קובץ לכאן או <span style={{color:'var(--blue)',textDecoration:'underline'}}>בחר קובץ</span></span>
+            }
             <input ref={fileRef} type="file" style={{display:'none'}} accept=".pdf,.jpg,.jpeg,.png,.webp"
               onChange={e=>{ if(e.target.files[0]) setAddForm(f=>({...f,file:e.target.files[0],url:''})); }}/>
           </div>
