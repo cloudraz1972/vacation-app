@@ -790,7 +790,7 @@ function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd, onGoTo
             {v.expenses&&v.expenses.length>0&&<div style={{fontSize:11,color:'var(--text2)',marginTop:2}}>💰 {v.expenses.reduce((s,e)=>s+(e.amountILS||0),0).toLocaleString('he-IL',{maximumFractionDigits:0})} ₪</div>}
           </div>
           <div className="day-popup-actions">
-            {onGoToPlanner&&['planned','paid','work'].includes(v.type)&&<button className="btn btn-icon btn-sm" title="תכנון יומי" onClick={()=>onGoToPlanner(v.id)}>🗓️</button>}
+            {onGoToPlanner&&['planned','paid','work'].includes(v.type)&&<button className="btn btn-icon btn-sm" title="תכנון יומי" onClick={()=>onGoToPlanner(v.id)}>📋</button>}
             <button className="btn btn-icon btn-sm" title="הוסף/עדכן ביומן Outlook" onClick={()=>downloadICS(v,'PUBLISH')}>📅</button>
             <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>onEdit(v)}>✏️</button>
             <button className="btn btn-icon btn-sm" title="מחק" onClick={()=>onDelete(v)}>🗑️</button>
