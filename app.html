@@ -768,7 +768,7 @@ function AddVacModal({start, end, cats, onClose, onSave}) {
   );
 }
 
-function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd, onGoToVac}) {
+function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd, onGoToVac, onGoToPlanner}) {
   useEffect(()=>{
     function handler(e){if(!e.target.closest('.day-popup'))onClose();}
     document.addEventListener('mousedown',handler);
@@ -790,6 +790,7 @@ function DayEventsPopup({ds, vacs, pos, onClose, onEdit, onDelete, onAdd, onGoTo
             {v.expenses&&v.expenses.length>0&&<div style={{fontSize:11,color:'var(--text2)',marginTop:2}}>💰 {v.expenses.reduce((s,e)=>s+(e.amountILS||0),0).toLocaleString('he-IL',{maximumFractionDigits:0})} ₪</div>}
           </div>
           <div className="day-popup-actions">
+            {onGoToPlanner&&['planned','paid','work'].includes(v.type)&&<button className="btn btn-icon btn-sm" title="תכנון יומי" onClick={()=>onGoToPlanner(v.id)}>🗓️</button>}
             <button className="btn btn-icon btn-sm" title="הוסף/עדכן ביומן Outlook" onClick={()=>downloadICS(v,'PUBLISH')}>📅</button>
             <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>onEdit(v)}>✏️</button>
             <button className="btn btn-icon btn-sm" title="מחק" onClick={()=>onDelete(v)}>🗑️</button>
@@ -848,7 +849,7 @@ function EditVacFromCalModal({v, onClose, onSave}) {
   );
 }
 
-function CalendarPage({onGoToVac}) {
+function CalendarPage({onGoToVac, onGoToPlanner}) {
   const {state,dispatch}=useStore();
   const {year,vacations}=state;
   const [selStart,setSelStart]=useState(null);
@@ -956,7 +957,8 @@ function CalendarPage({onGoToVac}) {
       </div>
       {popup&&<DayEventsPopup ds={popup.ds} vacs={popup.vacs} pos={popup.pos}
         onClose={()=>setPopup(null)} onEdit={handleEdit} onDelete={handleDelete}
-        onAdd={()=>handleAddOnDay(popup.ds)} onGoToVac={onGoToVac?id=>{setPopup(null);onGoToVac(id);}:undefined}/>}
+        onAdd={()=>handleAddOnDay(popup.ds)} onGoToVac={onGoToVac?id=>{setPopup(null);onGoToVac(id);}:undefined}
+        onGoToPlanner={onGoToPlanner?id=>{setPopup(null);onGoToPlanner(id);}:undefined}/>}
       {pendingEnd&&selStart&&(
         <AddVacModal start={selStart} end={pendingEnd} cats={state.cats} onClose={handleClose} onSave={handleSave}/>
       )}
