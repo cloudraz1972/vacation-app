@@ -2410,6 +2410,7 @@ const ACTIVITY_ICONS = ['🏨','✈️','🚗','🚢','🍽️','🎡','🏖️'
 function DailyPlannerPage({plannerVacId}) {
   const {state} = useStore();
   const [itinerary, setItinerary] = useState({}); // {dateStr: [{id,time,icon,text}]}
+  const [dayNotes, setDayNotes] = useState({}); // {dateStr: string}
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const saveTimer = useRef(null);
@@ -2441,16 +2442,19 @@ function DailyPlannerPage({plannerVacId}) {
   useEffect(()=>{
     ITINERARY_DOC.get().then(doc=>{
       setItinerary(doc.exists ? (doc.data().days||{}) : {});
+      setDayNotes(doc.exists ? (doc.data().notes||{}) : {});
       setLoaded(true);
     }).catch(()=>setLoaded(true));
   },[]);
 
-  function saveItinerary(next) {
+  function saveItinerary(next, notes) {
+    const nextNotes = notes !== undefined ? notes : dayNotes;
     setItinerary(next);
+    if(notes !== undefined) setDayNotes(notes);
     clearTimeout(saveTimer.current);
     setSaving(true);
     saveTimer.current = setTimeout(async ()=>{
-      try { await ITINERARY_DOC.set({days: next}); }
+      try { await ITINERARY_DOC.set({days: next, notes: nextNotes}); }
       catch(e) { alert('שגיאה בשמירה: '+e.message); }
       setSaving(false);
     }, 800);
@@ -2556,6 +2560,17 @@ function DailyPlannerPage({plannerVacId}) {
               <div className="dp-card-sub">
                 {selVac.name}{selVac.countryName ? ` · ${selVac.countryName}` : ''}
               </div>
+              <textarea
+                className="input"
+                placeholder="הוסף תיאור ליום..."
+                value={dayNotes[activeDay]||''}
+                onChange={e=>{
+                  const next={...dayNotes,[activeDay]:e.target.value};
+                  saveItinerary(itinerary, next);
+                }}
+                rows={2}
+                style={{marginTop:8,marginBottom:4,fontSize:13,resize:'vertical',width:'100%',boxSizing:'border-box'}}
+              />
 
               {/* ציר זמן אנכי */}
               {activities.length === 0
