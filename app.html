@@ -170,6 +170,30 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .dp-activity-row{display:flex;align-items:center;gap:10px;padding:8px 0;flex-wrap:wrap}
 .dp-add-row{display:flex;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap;align-items:center}
 .dp-empty{color:var(--text2);font-size:14px;text-align:center;padding:32px 0}
+.dp-view-toggle{display:flex;gap:6px;margin-bottom:16px}
+.dp-view-btn{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:none;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:.15s}
+.dp-view-btn.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.gantt-wrap{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);overflow:auto}
+.gantt-table{border-collapse:collapse;min-width:100%;table-layout:fixed}
+.gantt-col-label{min-width:120px;max-width:180px;width:160px}
+.gantt-day-col{min-width:38px;width:38px}
+.gantt-header-label{padding:8px 12px;font-size:12px;font-weight:700;color:var(--text2);text-align:right;background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
+.gantt-day-header{padding:4px 2px;text-align:center;background:var(--bg);border-bottom:2px solid var(--border);cursor:pointer;user-select:none;border-right:1px solid var(--border)}
+.gantt-day-header:hover{background:var(--blue)22}
+.gantt-day-num{font-size:13px;font-weight:700;color:var(--text)}
+.gantt-day-date{font-size:9px;color:var(--text2);white-space:nowrap}
+.gantt-day-dow{font-size:9px;color:var(--text2)}
+.gantt-span-label{padding:6px 12px;font-size:13px;white-space:nowrap;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.gantt-span-cell{border-bottom:1px solid var(--border);border-right:1px solid var(--border)00;position:relative;height:32px}
+.gantt-bar{position:absolute;top:5px;bottom:5px;border-radius:6px;display:flex;align-items:center;padding:0 6px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;cursor:pointer;transition:.15s;z-index:1}
+.gantt-bar:hover{filter:brightness(1.15)}
+.gantt-act-cell{padding:4px 2px;text-align:center;border-top:2px solid var(--border);border-right:1px solid var(--border);cursor:pointer}
+.gantt-act-cell:hover{background:var(--blue)22}
+.gantt-act-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin:0 auto;color:#fff}
+.gantt-add-row{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gantt-span-form{padding:12px;background:var(--bg);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.span-color-swatch{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:.1s}
+.span-color-swatch.active{border-color:var(--text);transform:scale(1.2)}
 .tcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);border-top:3px solid #8B5CF6;overflow:hidden}
 .tcard-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 8px}
 .tcard-info{}
@@ -2407,10 +2431,14 @@ function TravelersPage() {
 // ── Daily Planner ──────────────────────────────────────────────────────────
 const ACTIVITY_ICONS = ['🏨','✈️','🚗','🚢','🍽️','🎡','🏖️','🏛️','🛍️','🎭','⛪','🏔️','🤿','🎪','🚶','🚕','🎠','🧳','📸','🎶','🏊','⚽','🎯','💊','🛒','☕','🍕','🍦','🎬','🌅'];
 
+const SPAN_COLORS = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#64748B'];
+
 function DailyPlannerPage({plannerVacId}) {
   const {state} = useStore();
   const [itinerary, setItinerary] = useState({}); // {dateStr: [{id,time,icon,text}]}
   const [dayNotes, setDayNotes] = useState({}); // {dateStr: string}
+  const [spans, setSpans] = useState([]); // [{id,icon,text,startDate,endDate,color}]
+  const [viewMode, setViewMode] = useState('day'); // 'day' | 'gantt'
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const saveTimer = useRef(null);
@@ -2443,22 +2471,29 @@ function DailyPlannerPage({plannerVacId}) {
     ITINERARY_DOC.get().then(doc=>{
       setItinerary(doc.exists ? (doc.data().days||{}) : {});
       setDayNotes(doc.exists ? (doc.data().notes||{}) : {});
+      setSpans(doc.exists ? (doc.data().spans||[]) : []);
       setLoaded(true);
     }).catch(()=>setLoaded(true));
   },[]);
 
-  function saveItinerary(next, notes) {
+  function saveItinerary(next, notes, nextSpans) {
     const nextNotes = notes !== undefined ? notes : dayNotes;
+    const saveSpans = nextSpans !== undefined ? nextSpans : spans;
     setItinerary(next);
     if(notes !== undefined) setDayNotes(notes);
+    if(nextSpans !== undefined) setSpans(nextSpans);
     clearTimeout(saveTimer.current);
     setSaving(true);
     saveTimer.current = setTimeout(async ()=>{
-      try { await ITINERARY_DOC.set({days: next, notes: nextNotes}); }
+      try { await ITINERARY_DOC.set({days: next, notes: nextNotes, spans: saveSpans}); }
       catch(e) { alert('שגיאה בשמירה: '+e.message); }
       setSaving(false);
     }, 800);
   }
+
+  function addSpan(sp) { saveItinerary(itinerary, undefined, [...spans, {...sp, id:genId()}]); }
+  function delSpan(id) { saveItinerary(itinerary, undefined, spans.filter(s=>s.id!==id)); }
+  function updSpan(id, u) { saveItinerary(itinerary, undefined, spans.map(s=>s.id===id?{...s,...u}:s)); }
 
   function addActivity(act) {
     const list = [...(itinerary[activeDay]||[]), {...act, id:genId()}];
@@ -2521,8 +2556,16 @@ function DailyPlannerPage({plannerVacId}) {
           </select>
         </div>
 
-        {/* ציר ימים */}
+        {/* toggle תצוגה */}
         {selVac && days.length > 0 && (
+          <div className="dp-view-toggle">
+            <button className={`dp-view-btn${viewMode==='day'?' active':''}`} onClick={()=>setViewMode('day')}>📅 תצוגה יומית</button>
+            <button className={`dp-view-btn${viewMode==='gantt'?' active':''}`} onClick={()=>setViewMode('gantt')}>📊 ציר זמן</button>
+          </div>
+        )}
+
+        {/* ציר ימים — רק בתצוגה יומית */}
+        {selVac && days.length > 0 && viewMode==='day' && (
           <div className="dp-days-rail">
             {days.map((ds,i)=>{
               const hasPlan = (itinerary[ds]||[]).length > 0;
@@ -2546,8 +2589,23 @@ function DailyPlannerPage({plannerVacId}) {
           </div>
         )}
 
-        {/* כרטיס יום */}
-        {activeDay && selVac && (()=>{
+        {/* Gantt view */}
+        {selVac && days.length > 0 && viewMode==='gantt' && (
+          <GanttView
+            days={days}
+            spans={spans}
+            itinerary={itinerary}
+            vacColor={vacColor}
+            activeDay={activeDay}
+            onDayClick={ds=>{ setSelDay(ds); setViewMode('day'); }}
+            onAddSpan={addSpan}
+            onDelSpan={delSpan}
+            onUpdSpan={updSpan}
+          />
+        )}
+
+        {/* כרטיס יום — רק בתצוגה יומית */}
+        {activeDay && selVac && viewMode==='day' && (()=>{
           const d = new Date(activeDay);
           const dayNum = days.indexOf(activeDay)+1;
           const dayName = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][d.getDay()];
@@ -2610,6 +2668,173 @@ function DailyPlannerPage({plannerVacId}) {
           );
         })()}
       </>)}
+    </div>
+  );
+}
+
+function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onAddSpan, onDelSpan, onUpdSpan}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({icon:'🤿', text:'', startDate: days[0]||'', endDate: days[Math.min(5,days.length-1)]||days[0]||'', color: SPAN_COLORS[0]});
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
+  // סינון ספאנים שיש להם חפיפה עם ימי הנסיעה
+  const visSpans = spans.filter(sp => sp.endDate >= days[0] && sp.startDate <= days[days.length-1]);
+
+  function openAdd() {
+    setEditId(null);
+    setForm({icon:'🤿', text:'', startDate: days[0], endDate: days[Math.min(5,days.length-1)], color: SPAN_COLORS[0]});
+    setShowForm(true);
+  }
+  function openEdit(sp) {
+    setEditId(sp.id);
+    setForm({icon:sp.icon, text:sp.text, startDate:sp.startDate, endDate:sp.endDate, color:sp.color});
+    setShowForm(true);
+  }
+  function handleSave() {
+    if(!form.text.trim()) return;
+    if(editId) { onUpdSpan(editId, form); }
+    else { onAddSpan(form); }
+    setShowForm(false); setEditId(null);
+  }
+
+  // חישוב מיקום בר: left% + width%
+  function barStyle(sp) {
+    const total = days.length;
+    const si = Math.max(0, days.indexOf(sp.startDate));
+    const rawEnd = days.indexOf(sp.endDate);
+    const ei = rawEnd >= 0 ? Math.min(rawEnd, total-1) : total-1;
+    const left = (si / total) * 100;
+    const width = ((ei - si + 1) / total) * 100;
+    return {left: left+'%', width: width+'%'};
+  }
+
+  const DOW = ['א','ב','ג','ד','ה','ו','ש'];
+
+  return (
+    <div className="gantt-wrap">
+      <table className="gantt-table">
+        <colgroup>
+          <col className="gantt-col-label"/>
+          {days.map(ds=><col key={ds} className="gantt-day-col"/>)}
+        </colgroup>
+        <thead>
+          <tr>
+            <th className="gantt-header-label">פעילות / יום</th>
+            {days.map((ds,i)=>{
+              const d = new Date(ds);
+              const isToday = ds === activeDay;
+              return (
+                <th key={ds} className="gantt-day-header" onClick={()=>onDayClick(ds)}
+                  style={{background: isToday ? vacColor+'22' : undefined}}>
+                  <div className="gantt-day-num" style={{color: isToday ? vacColor : undefined}}>{i+1}</div>
+                  <div className="gantt-day-date">{d.getDate()}/{d.getMonth()+1}</div>
+                  <div className="gantt-day-dow">{DOW[d.getDay()]}</div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {visSpans.length === 0 && !showForm && (
+            <tr>
+              <td colSpan={days.length+1} className="dp-empty" style={{padding:'24px 0'}}>
+                אין בלוקי פעילות. לחץ "+ הוסף בלוק" למטה.
+              </td>
+            </tr>
+          )}
+          {visSpans.map(sp=>(
+            <tr key={sp.id}>
+              <td className="gantt-span-label">
+                <span>{sp.icon}</span>
+                <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis'}}>{sp.text}</span>
+                <button style={{background:'none',border:'none',cursor:'pointer',fontSize:13,color:'var(--text2)',padding:'0 2px'}} onClick={()=>openEdit(sp)}>✏️</button>
+                <button style={{background:'none',border:'none',cursor:'pointer',fontSize:13,color:'var(--text2)',padding:'0 2px'}} onClick={()=>onDelSpan(sp.id)}>🗑️</button>
+              </td>
+              {/* תא אחד לכל הימים עם positioning יחסי */}
+              <td colSpan={days.length} style={{position:'relative',height:42,padding:0,borderBottom:'1px solid var(--border)'}}>
+                {/* רשת רקע */}
+                <div style={{position:'absolute',inset:0,display:'grid',gridTemplateColumns:`repeat(${days.length},1fr)`}}>
+                  {days.map(ds=>(
+                    <div key={ds} style={{borderRight:'1px solid var(--border)22',height:'100%'}}/>
+                  ))}
+                </div>
+                {/* הבר הצבעוני */}
+                <div className="gantt-bar" style={{...barStyle(sp), background:sp.color}} onClick={()=>openEdit(sp)}>
+                  {sp.icon} {sp.text}
+                </div>
+              </td>
+            </tr>
+          ))}
+          {/* שורת ספירת פעילויות */}
+          <tr>
+            <td className="gantt-span-label" style={{fontSize:11,color:'var(--text2)',borderTop:'2px solid var(--border)'}}>
+              פעילויות יומיות
+            </td>
+            {days.map(ds=>{
+              const cnt = (itinerary[ds]||[]).length;
+              const isActive = ds === activeDay;
+              return (
+                <td key={ds} className="gantt-act-cell" onClick={()=>onDayClick(ds)}>
+                  {cnt > 0
+                    ? <div className="gantt-act-dot" style={{background: isActive ? vacColor : vacColor+'99'}}>{cnt}</div>
+                    : <div style={{width:14,height:14,borderRadius:'50%',border:'1.5px solid var(--border)',margin:'0 auto'}}/>
+                  }
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+
+      {/* שורת הוספה */}
+      <div className="gantt-add-row">
+        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ הוסף בלוק</button>
+        <span style={{fontSize:12,color:'var(--text2)'}}>לחץ על תאריך לעבור לתצוגה יומית</span>
+      </div>
+
+      {/* טופס הוספה/עריכה */}
+      {showForm && (
+        <div className="gantt-span-form">
+          {/* icon picker */}
+          <div style={{position:'relative'}}>
+            <button className="btn btn-secondary btn-sm" style={{fontSize:20,padding:'4px 10px'}}
+              onClick={()=>setShowIconPicker(p=>!p)}>{form.icon}</button>
+            {showIconPicker && (
+              <div style={{position:'absolute',bottom:'110%',right:0,zIndex:50,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:8,display:'flex',flexWrap:'wrap',gap:4,width:220,boxShadow:'var(--shm)'}}>
+                {ACTIVITY_ICONS.map(ic=>(
+                  <button key={ic} style={{background:'none',border:'none',cursor:'pointer',fontSize:20,padding:2,borderRadius:4}}
+                    onClick={()=>{setForm(f=>({...f,icon:ic}));setShowIconPicker(false);}}>{ic}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <input className="input input-sm" placeholder="שם פעילות..." value={form.text}
+            onChange={e=>setForm(f=>({...f,text:e.target.value}))}
+            style={{flex:1,minWidth:120}}/>
+          <label style={{fontSize:12,color:'var(--text2)',display:'flex',flexDirection:'column',gap:2}}>
+            מתאריך
+            <input type="date" className="input input-sm" value={form.startDate}
+              min={days[0]} max={days[days.length-1]}
+              onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} style={{width:130}}/>
+          </label>
+          <label style={{fontSize:12,color:'var(--text2)',display:'flex',flexDirection:'column',gap:2}}>
+            עד תאריך
+            <input type="date" className="input input-sm" value={form.endDate}
+              min={form.startDate||days[0]} max={days[days.length-1]}
+              onChange={e=>setForm(f=>({...f,endDate:e.target.value}))} style={{width:130}}/>
+          </label>
+          {/* בחירת צבע */}
+          <div style={{display:'flex',gap:4,alignItems:'center',flexWrap:'wrap'}}>
+            {SPAN_COLORS.map(c=>(
+              <div key={c} className={`span-color-swatch${form.color===c?' active':''}`}
+                style={{background:c}} onClick={()=>setForm(f=>({...f,color:c}))}/>
+            ))}
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={handleSave}>{editId?'עדכן':'הוסף'}</button>
+          <button className="btn btn-secondary btn-sm" onClick={()=>{setShowForm(false);setEditId(null);}}>ביטול</button>
+        </div>
+      )}
     </div>
   );
 }
