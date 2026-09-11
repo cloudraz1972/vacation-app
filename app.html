@@ -2670,9 +2670,10 @@ function DailyPlannerPage({plannerVacId}) {
 }
 
 function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onAddSpan, onDelSpan, onUpdSpan}) {
-  const [dragSel, setDragSel] = useState(null); // {start, end} while dragging
-  const [isDragging, setIsDragging] = useState(false);
-  const [form, setForm] = useState(null); // null or {icon,text,startDate,endDate,color}
+  // drag: null | {type:'create',anchor,cur} | {type:'resize-end',id,fixedStart,cur} | {type:'resize-start',id,fixedEnd,cur}
+  const [drag, setDrag] = useState(null);
+  const dragRef = useRef(null);
+  const [form, setForm] = useState(null);
   const [editId, setEditId] = useState(null);
   const [showIconPicker, setShowIconPicker] = useState(false);
 
@@ -2680,7 +2681,45 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
   const DOW_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   const LANE_H = 24, LANE_GAP = 3, DAY_H = 30;
 
-  // בנה שבועות: מיום ראשון לפני תאריך ההתחלה עד שבת אחרי תאריך הסיום
+  // שמור ref מסונכרן עם state drag
+  useEffect(()=>{ dragRef.current = drag; },[drag]);
+
+  // Window-level mouse tracking
+  useEffect(()=>{
+    function getDayAt(x,y){
+      const el = document.elementFromPoint(x,y);
+      return el?.closest('[data-day]')?.getAttribute('data-day') || null;
+    }
+    function onMove(e){
+      const d = dragRef.current;
+      if(!d) return;
+      const ds = getDayAt(e.clientX, e.clientY);
+      if(!ds || !daySet.has(ds)) return;
+      if(d.cur === ds) return;
+      setDrag(prev => prev ? {...prev, cur:ds} : prev);
+    }
+    function onUp(e){
+      const d = dragRef.current;
+      if(!d) return;
+      const ds = getDayAt(e.clientX, e.clientY) || d.cur;
+      if(d.type === 'create'){
+        const [s,en] = ds>=d.anchor ? [d.anchor,ds] : [ds,d.anchor];
+        if(s) { setForm({icon:'🤿',text:'',startDate:s,endDate:en||s,color:SPAN_COLORS[0]}); setEditId(null); }
+      } else if(d.type === 'resize-end'){
+        const newEnd = ds>=d.fixedStart ? ds : d.fixedStart;
+        onUpdSpan(d.id, {endDate:newEnd});
+      } else if(d.type === 'resize-start'){
+        const newStart = ds<=d.fixedEnd ? ds : d.fixedEnd;
+        onUpdSpan(d.id, {startDate:newStart});
+      }
+      setDrag(null);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return ()=>{ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  },[]); // eslint-disable-line
+
+  // בנה שבועות
   const firstDate = new Date(days[0]+'T12:00:00');
   const lastDate  = new Date(days[days.length-1]+'T12:00:00');
   const gStart = new Date(firstDate); gStart.setDate(gStart.getDate() - gStart.getDay());
@@ -2690,96 +2729,152 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
   const weeks = [];
   for(let i=0; i<gridDays.length; i+=7) weeks.push(gridDays.slice(i,i+7));
 
-  // הקצאת שורות (lanes) לספאנים בתוך שבוע
-  function assignLanes(spList) {
-    const lanes = [];
-    const sorted = [...spList].sort((a,b)=>a.startDate.localeCompare(b.startDate));
-    return sorted.map(sp=>{
-      let lane = lanes.findIndex(end=>end<sp.startDate);
+  function assignLanes(spList){
+    const lanes=[];
+    return [...spList].sort((a,b)=>a.startDate.localeCompare(b.startDate)).map(sp=>{
+      let lane=lanes.findIndex(end=>end<sp.startDate);
       if(lane<0){lane=lanes.length;lanes.push('');}
       lanes[lane]=sp.endDate;
       return {...sp,lane};
     });
   }
 
-  // האם יום בתוך בחירת drag
-  function inDragSel(ds) {
-    if(!dragSel) return false;
-    return ds>=dragSel.start && ds<=dragSel.end;
-  }
-
-  function onCellDown(e,ds) {
-    if(!daySet.has(ds)) return;
-    e.preventDefault();
-    setDragSel({start:ds,end:ds});
-    setIsDragging(true);
-  }
-  function onCellEnter(ds) {
-    if(!isDragging||!dragSel||!daySet.has(ds)) return;
-    const [s,e] = ds>=dragSel.start?[dragSel.start,ds]:[ds,dragSel.start];
-    setDragSel({start:s,end:e});
-  }
-  function onMouseUp() {
-    if(isDragging&&dragSel) {
-      setForm({icon:'🤿',text:'',startDate:dragSel.start,endDate:dragSel.end,color:SPAN_COLORS[0]});
-      setEditId(null);
+  // חישוב drag overlay — מה להציג בזמן גרירה
+  function getOverlay(){
+    if(!drag) return null;
+    if(drag.type==='create'){
+      const [s,e]= drag.cur>=drag.anchor?[drag.anchor,drag.cur]:[drag.cur,drag.anchor];
+      return {type:'create',start:s,end:e};
     }
-    setIsDragging(false);
-    setDragSel(null);
+    if(drag.type==='resize-end'){
+      return {type:'resize',id:drag.id,start:drag.fixedStart,end:drag.cur>=drag.fixedStart?drag.cur:drag.fixedStart};
+    }
+    if(drag.type==='resize-start'){
+      return {type:'resize',id:drag.id,start:drag.cur<=drag.fixedEnd?drag.cur:drag.fixedEnd,end:drag.fixedEnd};
+    }
+  }
+  const overlay = getOverlay();
+
+  function isDragHighlight(ds){
+    if(!overlay||overlay.type!=='create') return false;
+    return ds>=overlay.start && ds<=overlay.end;
   }
 
-  function openEdit(sp) {
+  function handleWeekDown(e,week){
+    // בדוק resize handle
+    const handle = e.target.closest('[data-resize]');
+    if(handle){
+      const spanId=handle.getAttribute('data-span-id');
+      const dir=handle.getAttribute('data-resize');
+      const sp=spans.find(s=>s.id===spanId);
+      if(sp){
+        e.preventDefault();
+        setDrag(dir==='end'
+          ? {type:'resize-end',id:spanId,fixedStart:sp.startDate,cur:sp.endDate}
+          : {type:'resize-start',id:spanId,fixedEnd:sp.endDate,cur:sp.startDate});
+        return;
+      }
+    }
+    // אל תתחיל create אם לוחצים על בר
+    if(e.target.closest('[data-span-bar]')) return;
+    // create drag
+    const cell=e.target.closest('[data-day]');
+    if(cell){
+      const ds=cell.getAttribute('data-day');
+      if(daySet.has(ds)){ e.preventDefault(); setDrag({type:'create',anchor:ds,cur:ds}); }
+    }
+  }
+
+  function openEdit(sp){
     setEditId(sp.id);
     setForm({icon:sp.icon,text:sp.text,startDate:sp.startDate,endDate:sp.endDate,color:sp.color});
   }
-  function handleSave() {
+  function handleSave(){
     if(!form?.text.trim()) return;
     if(editId) onUpdSpan(editId,form); else onAddSpan(form);
     setForm(null); setEditId(null);
   }
 
+  function renderBar(sp, week, lane){
+    const wStart=week[0], wEnd=week[6];
+    // אם יש overlay resize על בר זה — השתמש בתאריכים של ה-overlay
+    const disp = overlay?.type==='resize'&&overlay.id===sp.id ? {...sp,startDate:overlay.start,endDate:overlay.end} : sp;
+    const barStart=disp.startDate<wStart?wStart:disp.startDate;
+    const barEnd  =disp.endDate>wEnd?wEnd:disp.endDate;
+    const si=new Date(barStart+'T12:00:00').getDay();
+    const ei=new Date(barEnd+'T12:00:00').getDay();
+    if(ei<si) return null; // לא מוצג בשבוע זה אחרי resize
+    const right=(si/7*100)+'%';
+    const width=((ei-si+1)/7*100)+'%';
+    const top=DAY_H+lane*(LANE_H+LANE_GAP)+2;
+    const startsHere=disp.startDate>=wStart;
+    const endsHere=disp.endDate<=wEnd;
+    const br=`${endsHere?5:0}px ${startsHere?5:0}px ${startsHere?5:0}px ${endsHere?5:0}px`;
+    return (
+      <div key={sp.id} data-span-bar="1"
+        style={{position:'absolute',right,width,top,height:LANE_H,background:sp.color,borderRadius:br,
+          display:'flex',alignItems:'center',overflow:'hidden',boxSizing:'border-box',zIndex:2,
+          paddingRight:startsHere?20:2,paddingLeft:endsHere?20:2,
+          fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',userSelect:'none'}}
+        onClick={e=>{if(!drag){e.stopPropagation();openEdit(sp);}}}>
+        {/* ידית resize ימין (הארכת התחלה) */}
+        {startsHere&&(
+          <div data-resize="start" data-span-id={sp.id}
+            style={{position:'absolute',right:0,top:0,bottom:0,width:10,cursor:'ew-resize',
+              background:'rgba(0,0,0,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9}}
+            onMouseDown={e=>{e.preventDefault();e.stopPropagation();}}>⋮</div>
+        )}
+        {startsHere&&<span style={{marginLeft:4}}>{sp.icon}</span>}
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',flex:1,textAlign:'center'}}>{sp.text}</span>
+        {endsHere&&startsHere&&(
+          <button style={{background:'none',border:'none',color:'rgba(255,255,255,.8)',cursor:'pointer',fontSize:11,padding:'0 2px',flexShrink:0}}
+            onClick={e=>{e.stopPropagation();onDelSpan(sp.id);}}>✕</button>
+        )}
+        {/* ידית resize שמאל (הארכת סיום) */}
+        {endsHere&&(
+          <div data-resize="end" data-span-id={sp.id}
+            style={{position:'absolute',left:0,top:0,bottom:0,width:10,cursor:'ew-resize',
+              background:'rgba(0,0,0,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9}}
+            onMouseDown={e=>{e.preventDefault();e.stopPropagation();}}>⋮</div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="gcal" onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
-      {/* כותרת ימים */}
+    <div className="gcal" style={{cursor:drag?'crosshair':'default'}}>
       <div className="gcal-header">
         {DOW_HE.map(d=><div key={d} className="gcal-dow">{d}</div>)}
       </div>
 
-      {/* שבועות */}
       {weeks.map((week,wi)=>{
         const wStart=week[0], wEnd=week[6];
         const wSpans=spans.filter(sp=>sp.endDate>=wStart&&sp.startDate<=wEnd);
         const assigned=assignLanes(wSpans);
         const numLanes=assigned.reduce((m,s)=>Math.max(m,s.lane),-1)+1;
         const spH=numLanes>0?numLanes*(LANE_H+LANE_GAP)+4:0;
-        const rowH=DAY_H+spH+4;
+        const rowH=DAY_H+spH+6;
 
         return (
-          <div key={wi} className="gcal-week" style={{minHeight:rowH}}>
-            {/* תאי ימים */}
+          <div key={wi} className="gcal-week" style={{minHeight:rowH}}
+            onMouseDown={e=>handleWeekDown(e,week)}>
             {week.map(ds=>{
               const inVac=daySet.has(ds);
               const d=new Date(ds+'T12:00:00');
               const isActive=ds===activeDay;
-              const dragged=inDragSel(ds);
+              const hi=isDragHighlight(ds);
               const actCnt=(itinerary[ds]||[]).length;
               return (
-                <div key={ds} className="gcal-cell"
-                  onMouseDown={e=>onCellDown(e,ds)}
-                  onMouseEnter={()=>onCellEnter(ds)}
-                  onClick={()=>{ if(inVac&&!isDragging) onDayClick(ds); }}
+                <div key={ds} data-day={ds} className="gcal-cell"
+                  onClick={()=>{ if(inVac&&!drag) onDayClick(ds); }}
                   style={{
-                    background: dragged?vacColor+'55':isActive?vacColor+'22':!inVac?'var(--bg)':'var(--surface)',
-                    opacity: inVac?1:0.45,
-                    minHeight: rowH,
-                    cursor: inVac?'crosshair':'default',
-                  }}
-                >
+                    background: hi?vacColor+'55':isActive?vacColor+'22':!inVac?'var(--bg)':'var(--surface)',
+                    opacity:inVac?1:0.45, minHeight:rowH,
+                    cursor:inVac?(drag?'crosshair':'pointer'):'default',
+                  }}>
                   <div className="gcal-cell-top">
                     <span className={`gcal-day-num${isActive?' active':''}`}
-                      style={{color:isActive?vacColor:undefined}}>
-                      {d.getDate()}
-                    </span>
+                      style={{color:isActive?vacColor:undefined}}>{d.getDate()}</span>
                     {actCnt>0&&inVac&&(
                       <span className="gcal-act-badge" style={{background:vacColor}}>{actCnt}</span>
                     )}
@@ -2788,39 +2883,13 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
               );
             })}
 
-            {/* בארי ספאנים — מוצגים מעל התאים */}
-            {assigned.map(sp=>{
-              const barStart=sp.startDate<wStart?wStart:sp.startDate;
-              const barEnd=sp.endDate>wEnd?wEnd:sp.endDate;
-              const siDow=new Date(barStart+'T12:00:00').getDay(); // 0=Sun (ימין)
-              const eiDow=new Date(barEnd+'T12:00:00').getDay();
-              const right=(siDow/7*100)+'%';
-              const width=((eiDow-siDow+1)/7*100)+'%';
-              const top=DAY_H+sp.lane*(LANE_H+LANE_GAP)+2;
-              const startsHere=sp.startDate>=wStart;
-              const endsHere=sp.endDate<=wEnd;
-              const br=`${endsHere?5:0}px ${startsHere?5:0}px ${startsHere?5:0}px ${endsHere?5:0}px`;
-              return (
-                <div key={sp.id} className="gcal-span-bar"
-                  style={{right,width,top,height:LANE_H,background:sp.color,borderRadius:br,
-                    paddingRight:startsHere?7:3,paddingLeft:endsHere?3:0}}
-                  onClick={e=>{e.stopPropagation();openEdit(sp);}}>
-                  {startsHere&&<span style={{marginLeft:3}}>{sp.icon}</span>}
-                  <span style={{overflow:'hidden',textOverflow:'ellipsis',flex:1}}>{sp.text}</span>
-                  {endsHere&&startsHere&&(
-                    <button className="gcal-bar-del"
-                      onClick={e=>{e.stopPropagation();onDelSpan(sp.id);}}>✕</button>
-                  )}
-                </div>
-              );
-            })}
+            {assigned.map(sp=>renderBar(sp, week, sp.lane))}
           </div>
         );
       })}
 
-      <div className="gcal-drag-hint">💡 גרור על הימים ליצירת בלוק פעילות • לחץ על מספר יום לתצוגה יומית</div>
+      <div className="gcal-drag-hint">💡 גרור על הימים ליצירת בלוק • גרור ⋮ בקצוות הבלוק להארכה • לחץ על יום לתצוגה שעתית</div>
 
-      {/* טופס הוספה/עריכה */}
       {form && (
         <div className="gcal-form">
           <div style={{position:'relative'}}>
@@ -2837,7 +2906,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
           </div>
           <input className="input input-sm" placeholder="שם פעילות..." value={form.text}
             onChange={e=>setForm(f=>({...f,text:e.target.value}))}
-            onKeyDown={e=>e.key==='Enter'&&handleSave()}
+            onKeyDown={e=>e.key==='Enter'&&handleSave()} autoFocus
             style={{flex:1,minWidth:120}}/>
           <label style={{fontSize:11,color:'var(--text2)',display:'flex',flexDirection:'column',gap:2}}>
             מ<input type="date" className="input input-sm" value={form.startDate}
