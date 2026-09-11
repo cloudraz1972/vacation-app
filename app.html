@@ -2673,6 +2673,8 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
   // drag: null | {type:'create',anchor,cur} | {type:'resize-end',id,fixedStart,cur} | {type:'resize-start',id,fixedEnd,cur}
   const [drag, setDrag] = useState(null);
   const dragRef = useRef(null);
+  const didDragRef = useRef(false); // האם הייתה גרירה אמיתית (למנוע click אחרי drag)
+  const cbRef = useRef({onUpdSpan}); // ref לcallbacks כדי למנוע stale closure
   const [form, setForm] = useState(null);
   const [editId, setEditId] = useState(null);
   const [showIconPicker, setShowIconPicker] = useState(false);
@@ -2681,6 +2683,8 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
   const DOW_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   const LANE_H = 24, LANE_GAP = 3, DAY_H = 30;
 
+  // עדכן ref בכל render כדי שה-window handlers תמיד ישתמשו בגרסה הנוכחית
+  useEffect(()=>{ cbRef.current = {onUpdSpan}; });
   // שמור ref מסונכרן עם state drag
   useEffect(()=>{ dragRef.current = drag; },[drag]);
 
@@ -2694,23 +2698,27 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
       const d = dragRef.current;
       if(!d) return;
       const ds = getDayAt(e.clientX, e.clientY);
-      if(!ds || !daySet.has(ds)) return;
+      if(!ds) return;
       if(d.cur === ds) return;
+      didDragRef.current = true;
       setDrag(prev => prev ? {...prev, cur:ds} : prev);
     }
     function onUp(e){
       const d = dragRef.current;
       if(!d) return;
       const ds = getDayAt(e.clientX, e.clientY) || d.cur;
+      const wasDrag = didDragRef.current;
+      didDragRef.current = false;
       if(d.type === 'create'){
         const [s,en] = ds>=d.anchor ? [d.anchor,ds] : [ds,d.anchor];
-        if(s) { setForm({icon:'🤿',text:'',startDate:s,endDate:en||s,color:SPAN_COLORS[0]}); setEditId(null); }
+        // פתח טופס רק אם הייתה גרירה אמיתית (לא סתם click)
+        if(s && wasDrag) { setForm({icon:'🤿',text:'',startDate:s,endDate:en||s,color:SPAN_COLORS[0]}); setEditId(null); }
       } else if(d.type === 'resize-end'){
         const newEnd = ds>=d.fixedStart ? ds : d.fixedStart;
-        onUpdSpan(d.id, {endDate:newEnd});
+        cbRef.current.onUpdSpan(d.id, {endDate:newEnd});
       } else if(d.type === 'resize-start'){
         const newStart = ds<=d.fixedEnd ? ds : d.fixedEnd;
-        onUpdSpan(d.id, {startDate:newStart});
+        cbRef.current.onUpdSpan(d.id, {startDate:newStart});
       }
       setDrag(null);
     }
@@ -2867,7 +2875,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
               return (
                 <div key={ds} data-day={ds} className="gcal-cell"
                   onClick={()=>{
-                    if(!inVac||drag) return;
+                    if(!inVac||didDragRef.current) return;
                     // לחיצה על תא → פתח טופס הוספת בלוק לאותו יום
                     setForm({icon:'🤿',text:'',startDate:ds,endDate:ds,color:SPAN_COLORS[0]});
                     setEditId(null);
