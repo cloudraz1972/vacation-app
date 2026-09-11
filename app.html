@@ -2866,15 +2866,26 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
               const actCnt=(itinerary[ds]||[]).length;
               return (
                 <div key={ds} data-day={ds} className="gcal-cell"
-                  onClick={()=>{ if(inVac&&!drag) onDayClick(ds); }}
+                  onClick={()=>{
+                    if(!inVac||drag) return;
+                    // לחיצה על תא → פתח טופס הוספת בלוק לאותו יום
+                    setForm({icon:'🤿',text:'',startDate:ds,endDate:ds,color:SPAN_COLORS[0]});
+                    setEditId(null);
+                  }}
                   style={{
                     background: hi?vacColor+'55':isActive?vacColor+'22':!inVac?'var(--bg)':'var(--surface)',
                     opacity:inVac?1:0.45, minHeight:rowH,
                     cursor:inVac?(drag?'crosshair':'pointer'):'default',
                   }}>
                   <div className="gcal-cell-top">
+                    {/* לחיצה על מספר היום → תצוגה יומית שעתית */}
                     <span className={`gcal-day-num${isActive?' active':''}`}
-                      style={{color:isActive?vacColor:undefined}}>{d.getDate()}</span>
+                      style={{color:isActive?vacColor:undefined,
+                        background:isActive?vacColor+'22':'none',
+                        borderRadius:4,padding:'1px 3px',cursor:inVac?'pointer':'default'}}
+                      onClick={e=>{e.stopPropagation();if(inVac) onDayClick(ds);}}>
+                      {d.getDate()}
+                    </span>
                     {actCnt>0&&inVac&&(
                       <span className="gcal-act-badge" style={{background:vacColor}}>{actCnt}</span>
                     )}
@@ -2888,7 +2899,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         );
       })}
 
-      <div className="gcal-drag-hint">💡 גרור על הימים ליצירת בלוק • גרור ⋮ בקצוות הבלוק להארכה • לחץ על יום לתצוגה שעתית</div>
+      <div className="gcal-drag-hint">💡 לחץ על תא יום להוספת בלוק • גרור לבחירת טווח ימים • גרור ⋮ בקצה הבלוק להארכה • לחץ על מספר היום לתצוגה שעתית</div>
 
       {form && (
         <div className="gcal-form">
