@@ -2820,9 +2820,9 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         {/* ידית resize ימין (הארכת התחלה) */}
         {startsHere&&(
           <div data-resize="start" data-span-id={sp.id}
-            style={{position:'absolute',right:0,top:0,bottom:0,width:10,cursor:'ew-resize',
-              background:'rgba(0,0,0,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9}}
-            onMouseDown={e=>{e.preventDefault();e.stopPropagation();}}>⋮</div>
+            style={{position:'absolute',right:0,top:0,bottom:0,width:12,cursor:'ew-resize',
+              background:'rgba(0,0,0,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,flexShrink:0}}
+            onMouseDown={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-start',id:sp.id,fixedEnd:sp.endDate,cur:sp.startDate});}}>⋮</div>
         )}
         {startsHere&&<span style={{marginLeft:4}}>{sp.icon}</span>}
         <span style={{overflow:'hidden',textOverflow:'ellipsis',flex:1,textAlign:'center'}}>{sp.text}</span>
@@ -2833,9 +2833,9 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         {/* ידית resize שמאל (הארכת סיום) */}
         {endsHere&&(
           <div data-resize="end" data-span-id={sp.id}
-            style={{position:'absolute',left:0,top:0,bottom:0,width:10,cursor:'ew-resize',
-              background:'rgba(0,0,0,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9}}
-            onMouseDown={e=>{e.preventDefault();e.stopPropagation();}}>⋮</div>
+            style={{position:'absolute',left:0,top:0,bottom:0,width:12,cursor:'ew-resize',
+              background:'rgba(0,0,0,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,flexShrink:0}}
+            onMouseDown={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-end',id:sp.id,fixedStart:sp.startDate,cur:sp.endDate});}}>⋮</div>
         )}
       </div>
     );
