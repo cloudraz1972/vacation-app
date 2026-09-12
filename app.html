@@ -2595,16 +2595,8 @@ function DailyPlannerPage({plannerVacId}) {
           </select>
         </div>
 
-        {/* toggle תצוגה */}
+        {/* ציר ימים */}
         {selVac && days.length > 0 && (
-          <div className="dp-view-toggle">
-            <button className={`dp-view-btn${viewMode==='day'?' active':''}`} onClick={()=>setViewMode('day')}>📅 תצוגה יומית</button>
-            <button className={`dp-view-btn${viewMode==='gantt'?' active':''}`} onClick={()=>setViewMode('gantt')}>📊 ציר זמן</button>
-          </div>
-        )}
-
-        {/* ציר ימים — רק בתצוגה יומית */}
-        {selVac && days.length > 0 && viewMode==='day' && (
           <div className="dp-days-rail">
             {days.map((ds,i)=>{
               const hasPlan = (itinerary[ds]||[]).length > 0;
@@ -2628,23 +2620,24 @@ function DailyPlannerPage({plannerVacId}) {
           </div>
         )}
 
-        {/* Gantt view */}
-        {selVac && days.length > 0 && viewMode==='gantt' && (
+        {/* גאנט מוטמע — מחבר בין ציר הימים לפירוט היום */}
+        {selVac && days.length > 0 && (
           <GanttView
             days={days}
             spans={spans}
             itinerary={itinerary}
             vacColor={vacColor}
             activeDay={activeDay}
-            onDayClick={ds=>{ setSelDay(ds); setViewMode('day'); }}
+            onDayClick={ds=>setSelDay(ds)}
             onAddSpan={addSpan}
             onDelSpan={delSpan}
             onUpdSpan={updSpan}
+            embedded={true}
           />
         )}
 
-        {/* כרטיס יום — רק בתצוגה יומית */}
-        {activeDay && selVac && viewMode==='day' && (()=>{
+        {/* כרטיס יום */}
+        {activeDay && selVac && (()=>{
           const d = new Date(activeDay);
           const dayNum = days.indexOf(activeDay)+1;
           const dayName = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][d.getDay()];
@@ -2711,7 +2704,7 @@ function DailyPlannerPage({plannerVacId}) {
   );
 }
 
-function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onAddSpan, onDelSpan, onUpdSpan}) {
+function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onAddSpan, onDelSpan, onUpdSpan, embedded}) {
   // drag: null | {type:'create',anchor,cur} | {type:'resize-end',id,fixedStart,cur} | {type:'resize-start',id,fixedEnd,cur}
   const [drag, setDrag] = useState(null);
   const dragRef = useRef(null);
@@ -2723,7 +2716,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
 
   const daySet = new Set(days);
   const DOW_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  const LANE_H = 24, LANE_GAP = 3, DAY_H = 30;
+  const LANE_H = embedded?20:24, LANE_GAP = 3, DAY_H = embedded?24:30;
 
   // עדכן ref בכל render כדי שה-window handlers תמיד ישתמשו בגרסה הנוכחית
   useEffect(()=>{ cbRef.current = {onUpdSpan}; });
@@ -2912,7 +2905,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
   }
 
   return (
-    <div className="gcal" style={{cursor:drag?'crosshair':'default'}}>
+    <div className="gcal" style={{cursor:drag?'crosshair':'default', borderRadius:embedded?0:undefined, borderLeft:'none', borderRight:'none', marginBottom:embedded?12:0}}>
       <div className="gcal-header">
         {DOW_HE.map(d=><div key={d} className="gcal-dow">{d}</div>)}
       </div>
@@ -2939,7 +2932,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
                 <div key={ds} data-day={ds} className="gcal-cell"
                   onClick={()=>{
                     if(!inVac||didDragRef.current) return;
-                    // לחיצה על תא → פתח טופס הוספת בלוק לאותו יום
+                    if(embedded) { onDayClick(ds); return; } // במצב מוטמע — בחר יום
                     setForm({icon:'🤿',text:'',startDate:ds,endDate:ds,color:SPAN_COLORS[0]});
                     setEditId(null);
                   }}
@@ -2949,7 +2942,6 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
                     cursor:inVac?(drag?'crosshair':'pointer'):'default',
                   }}>
                   <div className="gcal-cell-top">
-                    {/* לחיצה על מספר היום → תצוגה יומית שעתית */}
                     <span className={`gcal-day-num${isActive?' active':''}`}
                       style={{color:isActive?vacColor:undefined,
                         background:isActive?vacColor+'22':'none',
@@ -2970,7 +2962,10 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         );
       })}
 
-      <div className="gcal-drag-hint">💡 לחץ על תא יום להוספת בלוק • גרור לבחירת טווח ימים • גרור ⋮ בקצה הבלוק להארכה • לחץ על מספר היום לתצוגה שעתית</div>
+      <div className="gcal-drag-hint">{embedded
+        ? '💡 לחץ על יום לפירוט שעתי • לחץ על תא ריק להוספת בלוק • גרור ⋮ להארכה'
+        : '💡 לחץ על תא יום להוספת בלוק • גרור לבחירת טווח ימים • גרור ⋮ בקצה הבלוק להארכה • לחץ על מספר היום לתצוגה שעתית'
+      }</div>
 
       {form && (
         <div className="gcal-form">
