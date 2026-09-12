@@ -689,7 +689,7 @@ function isInRange(d, a, b) {
   return d>=lo && d<=hi;
 }
 
-function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover,dragState,dropDate,onDragStartVac,onDragOverDay,onDropDay,onDragEnd}) {
+function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover,dragState,dropDate,onDragStartVac,onDragOverDay,onDropDay,onDragEnd,onTouchStartVac}) {
   const first = new Date(year,month,1);
   const days = new Date(year,month+1,0).getDate();
   const startDow = first.getDay();
@@ -722,6 +722,7 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover,d
           const flag=paidVac?countryFlag(paidVac.countryCode):'';
           return (
             <span key={day}
+              data-day={ds}
               className={`day${hasColor?' colored':''}${inSel&&!isStart?' in-sel':''}${isStart?' sel-start':''}${isToday?' today':''}${info&&info.types.has('health')?' health-day':''}`}
               style={{...style,cursor:dragVac&&!dragState?'grab':undefined}}
               draggable={!!dragVac&&!selStart}
@@ -729,6 +730,7 @@ function MonthGrid({year,month,dayMap,selStart,hoverDate,onDayClick,onDayHover,d
               onDragOver={dragState?e=>onDragOverDay(ds,e):undefined}
               onDrop={dragState?()=>onDropDay(ds):undefined}
               onDragEnd={onDragEnd}
+              onTouchStart={dragVac&&!selStart?e=>onTouchStartVac(dragVac,e):undefined}
               onClick={e=>!dragState&&onDayClick(ds,e)}
               onMouseEnter={()=>onDayHover(ds)}
               title={info?info.vacs.map(v=>v.name).join(', '):''}
@@ -921,6 +923,9 @@ function CalendarPage({onGoToVac, onGoToPlanner}) {
 
   const [dragState, setDragState] = useState(null); // {vacId, durationDays}
   const [dropDate, setDropDate] = useState(null);
+  const touchDragRef = useRef(null);
+  const dragStateRef = useRef(null);
+  useEffect(()=>{ dragStateRef.current = dragState; },[dragState]);
 
   function handleDragStartVac(vac, e) {
     const dur = Math.round((new Date(vac.endDate)-new Date(vac.startDate))/(1000*60*60*24));
@@ -932,13 +937,49 @@ function CalendarPage({onGoToVac, onGoToPlanner}) {
     setDropDate(ds);
   }
   function handleDropDay(ds) {
-    if(!dragState) return;
-    const newStart=ds;
-    const newEnd=new Date(new Date(ds).getTime()+dragState.durationDays*86400000).toISOString().slice(0,10);
-    dispatch({t:'UPD_VAC',id:dragState.vacId,u:{startDate:newStart,endDate:newEnd}});
+    const ds2 = dragStateRef.current;
+    if(!ds2) return;
+    const newEnd=new Date(new Date(ds).getTime()+ds2.durationDays*86400000).toISOString().slice(0,10);
+    dispatch({t:'UPD_VAC',id:ds2.vacId,u:{startDate:ds,endDate:newEnd}});
     setDragState(null); setDropDate(null);
   }
   function handleDragEnd() { setDragState(null); setDropDate(null); }
+
+  // Touch drag — לאנדרואיד
+  function handleTouchStartVac(vac, e) {
+    e.preventDefault();
+    const dur = Math.round((new Date(vac.endDate)-new Date(vac.startDate))/(1000*60*60*24));
+    const ds = {vacId:vac.id, durationDays:dur};
+    touchDragRef.current = ds;
+    setDragState(ds);
+  }
+
+  useEffect(()=>{
+    function getDayAt(x,y){
+      const el = document.elementFromPoint(x,y);
+      return el?.closest('[data-day]')?.getAttribute('data-day') || null;
+    }
+    function onTouchMove(e){
+      if(!touchDragRef.current) return;
+      if(e.cancelable) e.preventDefault();
+      const t=e.touches[0];
+      const ds=getDayAt(t.clientX,t.clientY);
+      if(ds) setDropDate(ds);
+    }
+    function onTouchEnd(e){
+      if(!touchDragRef.current) return;
+      const t=e.changedTouches[0];
+      const ds=getDayAt(t.clientX,t.clientY);
+      if(ds) handleDropDay(ds); else handleDragEnd();
+      touchDragRef.current=null;
+    }
+    window.addEventListener('touchmove',onTouchMove,{passive:false});
+    window.addEventListener('touchend',onTouchEnd);
+    return ()=>{
+      window.removeEventListener('touchmove',onTouchMove);
+      window.removeEventListener('touchend',onTouchEnd);
+    };
+  },[]);
 
   return (
     <div className="page">
@@ -979,7 +1020,8 @@ function CalendarPage({onGoToVac, onGoToPlanner}) {
             onDayClick={handleDayClick} onDayHover={ds=>selStart&&!pendingEnd&&setHoverDate(ds)}
             dragState={dragState} dropDate={dropDate}
             onDragStartVac={handleDragStartVac} onDragOverDay={handleDragOverDay}
-            onDropDay={handleDropDay} onDragEnd={handleDragEnd}/>
+            onDropDay={handleDropDay} onDragEnd={handleDragEnd}
+            onTouchStartVac={handleTouchStartVac}/>
         ))}
       </div>
       </div>
