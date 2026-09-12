@@ -2688,16 +2688,22 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
   // שמור ref מסונכרן עם state drag
   useEffect(()=>{ dragRef.current = drag; },[drag]);
 
-  // Window-level mouse tracking
+  // Window-level mouse + touch tracking
   useEffect(()=>{
     function getDayAt(x,y){
       const el = document.elementFromPoint(x,y);
       return el?.closest('[data-day]')?.getAttribute('data-day') || null;
     }
+    function coords(e){ // מחזיר {x,y} ממאוס או מגע
+      const t = e.touches?.[0] || e.changedTouches?.[0];
+      return t ? {x:t.clientX, y:t.clientY} : {x:e.clientX, y:e.clientY};
+    }
     function onMove(e){
       const d = dragRef.current;
       if(!d) return;
-      const ds = getDayAt(e.clientX, e.clientY);
+      if(e.cancelable) e.preventDefault(); // מונע גלילה במובייל
+      const {x,y} = coords(e);
+      const ds = getDayAt(x,y);
       if(!ds) return;
       if(d.cur === ds) return;
       didDragRef.current = true;
@@ -2706,12 +2712,12 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
     function onUp(e){
       const d = dragRef.current;
       if(!d) return;
-      const ds = getDayAt(e.clientX, e.clientY) || d.cur;
+      const {x,y} = coords(e);
+      const ds = getDayAt(x,y) || d.cur;
       const wasDrag = didDragRef.current;
       didDragRef.current = false;
       if(d.type === 'create'){
         const [s,en] = ds>=d.anchor ? [d.anchor,ds] : [ds,d.anchor];
-        // פתח טופס רק אם הייתה גרירה אמיתית (לא סתם click)
         if(s && wasDrag) { setForm({icon:'🤿',text:'',startDate:s,endDate:en||s,color:SPAN_COLORS[0]}); setEditId(null); }
       } else if(d.type === 'resize-end'){
         const newEnd = ds>=d.fixedStart ? ds : d.fixedStart;
@@ -2724,7 +2730,14 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    return ()=>{ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('touchmove', onMove, {passive:false});
+    window.addEventListener('touchend', onUp);
+    return ()=>{
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
   },[]); // eslint-disable-line
 
   // בנה שבועות
@@ -2768,9 +2781,14 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
     return ds>=overlay.start && ds<=overlay.end;
   }
 
-  function handleWeekDown(e,week){
+  function handleWeekDown(e){
+    const touch = e.touches?.[0];
+    const target = touch
+      ? document.elementFromPoint(touch.clientX, touch.clientY)
+      : e.target;
+    if(!target) return;
     // בדוק resize handle
-    const handle = e.target.closest('[data-resize]');
+    const handle = target.closest('[data-resize]');
     if(handle){
       const spanId=handle.getAttribute('data-span-id');
       const dir=handle.getAttribute('data-resize');
@@ -2784,9 +2802,9 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
       }
     }
     // אל תתחיל create אם לוחצים על בר
-    if(e.target.closest('[data-span-bar]')) return;
+    if(target.closest('[data-span-bar]')) return;
     // create drag
-    const cell=e.target.closest('[data-day]');
+    const cell=target.closest('[data-day]');
     if(cell){
       const ds=cell.getAttribute('data-day');
       if(daySet.has(ds)){ e.preventDefault(); setDrag({type:'create',anchor:ds,cur:ds}); }
@@ -2830,7 +2848,8 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
           <div data-resize="start" data-span-id={sp.id}
             style={{position:'absolute',right:0,top:0,bottom:0,width:12,cursor:'ew-resize',
               background:'rgba(0,0,0,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,flexShrink:0}}
-            onMouseDown={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-start',id:sp.id,fixedEnd:sp.endDate,cur:sp.startDate});}}>⋮</div>
+            onMouseDown={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-start',id:sp.id,fixedEnd:sp.endDate,cur:sp.startDate});}}
+            onTouchStart={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-start',id:sp.id,fixedEnd:sp.endDate,cur:sp.startDate});}}>⋮</div>
         )}
         {startsHere&&<span style={{marginLeft:4}}>{sp.icon}</span>}
         <span style={{overflow:'hidden',textOverflow:'ellipsis',flex:1,textAlign:'center'}}>{sp.text}</span>
@@ -2843,7 +2862,8 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
           <div data-resize="end" data-span-id={sp.id}
             style={{position:'absolute',left:0,top:0,bottom:0,width:12,cursor:'ew-resize',
               background:'rgba(0,0,0,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,flexShrink:0}}
-            onMouseDown={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-end',id:sp.id,fixedStart:sp.startDate,cur:sp.endDate});}}>⋮</div>
+            onMouseDown={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-end',id:sp.id,fixedStart:sp.startDate,cur:sp.endDate});}}
+            onTouchStart={e=>{e.preventDefault();e.stopPropagation();setDrag({type:'resize-end',id:sp.id,fixedStart:sp.startDate,cur:sp.endDate});}}>⋮</div>
         )}
       </div>
     );
@@ -2865,7 +2885,8 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
 
         return (
           <div key={wi} className="gcal-week" style={{minHeight:rowH}}
-            onMouseDown={e=>handleWeekDown(e,week)}>
+            onMouseDown={handleWeekDown}
+            onTouchStart={handleWeekDown}>
             {week.map(ds=>{
               const inVac=daySet.has(ds);
               const d=new Date(ds+'T12:00:00');
