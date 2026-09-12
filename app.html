@@ -207,6 +207,16 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .titem-add:hover{text-decoration:underline}
 .passport-photo{color:#3B82F6;font-size:12px;text-decoration:none}
 .passport-photo:hover{text-decoration:underline}
+.wcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border:2px solid var(--border);border-right:5px solid transparent;overflow:hidden;display:flex;flex-direction:column}
+.wcard-hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px 10px;gap:10px}
+.wcard-title{font-weight:700;font-size:15px;line-height:1.3}
+.wcard-country{font-size:12px;color:var(--text2);margin-top:2px}
+.wcard-priority{font-size:20px;flex-shrink:0}
+.wcard-meta{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 8px;font-size:12px;color:var(--text2)}
+.wcard-notes{padding:0 16px 12px;font-size:13px;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5}
+.wcard-actions{display:flex;gap:6px;padding:10px 16px;border-top:1px solid var(--border);margin-top:auto;flex-wrap:wrap}
+.wishlist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
+.wishlist-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
 .vcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);border:2px solid var(--border);border-right:5px solid transparent;overflow:hidden}
 .day-flag{position:absolute;bottom:1px;right:2px;font-size:9px;line-height:1;pointer-events:none}
 .day{position:relative}
@@ -399,7 +409,7 @@ function dateRange(a, b) {
 // ── Store ──────────────────────────────────────────────────────────────────
 const Ctx = createContext(null);
 const SKEY = 'vacation-app-v2';
-const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], docTypes: [...DEFAULT_DOC_TYPES], travelers: [], anthropicKey: '' };
+const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], docTypes: [...DEFAULT_DOC_TYPES], travelers: [], anthropicKey: '', wishlist: [] };
 
 function reducer(s, a) {
   switch(a.t) {
@@ -421,6 +431,9 @@ function reducer(s, a) {
     case 'DEL_DOC_TYPE': return {...s, docTypes:(s.docTypes||[]).filter(c=>c!==a.n)};
     case 'LOAD': return {...initState,...a.s,travelers:s.travelers};
     case 'SET_ANTHROPIC_KEY': return {...s, anthropicKey:a.key};
+    case 'ADD_WISH': return {...s, wishlist:[...(s.wishlist||[]),{...a.w,id:genId(),addedDate:new Date().toISOString().slice(0,10)}]};
+    case 'UPD_WISH': return {...s, wishlist:(s.wishlist||[]).map(w=>w.id===a.id?{...w,...a.u}:w)};
+    case 'DEL_WISH': return {...s, wishlist:(s.wishlist||[]).filter(w=>w.id!==a.id)};
     case 'LOAD_TRAVELERS': return {...s, travelers:a.travelers||[]};
     case 'ADD_TRAVELER': return {...s, travelers:[...s.travelers,{passports:[],frequentFlyer:[],...a.tv,id:genId()}]};
     case 'UPD_TRAVELER': return {...s, travelers:s.travelers.map(t=>t.id===a.id?{...t,...a.u}:t)};
@@ -553,6 +566,7 @@ const ROUTES = [
   {path:'/planner',label:'תכנון יומי',icon:'🗓️'},
   {path:'/map',label:'מפת עולם',icon:'🗺️'},
   {path:'/vacations',label:'חופשות',icon:'✈️'},
+  {path:'/wishlist',label:'חלומות',icon:'🌟'},
   {path:'/dashboard',label:'דאשבורד',icon:'📊'},
   {path:'/travelers',label:'נוסעים',icon:'👤'},
   {path:'/settings',label:'הגדרות',icon:'⚙️'},
@@ -3100,13 +3114,260 @@ function ExpiryWarningBanner() {
   );
 }
 
+// ── Wish List ──────────────────────────────────────────────────────────────
+const WISH_PRIORITY = [
+  {key:'hot',   label:'🔥 חם',    color:'#EF4444'},
+  {key:'dream', label:'⭐ חלום',  color:'#F59E0B'},
+  {key:'maybe', label:'💭 אולי',  color:'#94A3B8'},
+];
+const WISH_PRIORITY_MAP = Object.fromEntries(WISH_PRIORITY.map(p=>[p.key,p]));
+
+function WishModal({item, onClose, onSave}) {
+  const empty = {name:'',countryCode:'',countryName:'',priority:'dream',estimatedDays:'',composition:'',notes:''};
+  const [f,setF] = useState(item ? {...item} : empty);
+  function save() {
+    if(!f.name.trim()) return;
+    const cn = COUNTRIES.find(c=>c.code===f.countryCode);
+    onSave({...f, countryName: cn?.name||f.countryName||''});
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>{item ? 'עריכת חלום' : '✨ הוספת חלום לחופשה'}</h2>
+        <div className="fg">
+          <label>שם החופשה / יעד</label>
+          <input className="input" value={f.name} autoFocus onChange={e=>setF({...f,name:e.target.value})} placeholder='לדוגמא: יפן בסתיו'/>
+        </div>
+        <div className="fg">
+          <label>מדינה (אופציונלי)</label>
+          <select className="input" value={f.countryCode} onChange={e=>setF({...f,countryCode:e.target.value})}>
+            <option value="">בחר מדינה...</option>
+            {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=>(
+              <option key={c.code} value={c.code}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="fg">
+          <label>עדיפות</label>
+          <div style={{display:'flex',gap:8}}>
+            {WISH_PRIORITY.map(p=>(
+              <button key={p.key}
+                className={`type-btn${f.priority===p.key?' active':''}`}
+                style={{'--tc':p.color}}
+                onClick={()=>setF({...f,priority:p.key})}>{p.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="fg">
+            <label>משך משוער (ימים)</label>
+            <input className="input" type="number" min="1" value={f.estimatedDays} onChange={e=>setF({...f,estimatedDays:e.target.value})} placeholder='7'/>
+          </div>
+          <div className="fg">
+            <label>הרכב</label>
+            <select className="input" value={f.composition} onChange={e=>setF({...f,composition:e.target.value})}>
+              <option value="">בחר הרכב...</option>
+              {['רז','אלינור','זוגי','משפחתי'].map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="fg">
+          <label>הערות / רעיונות</label>
+          <textarea className="input" rows="3" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})} placeholder='למה רוצים לנסוע, מה לעשות שם...' style={{resize:'vertical'}}/>
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={save}>שמור</button>
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WishListPage({onGoToVac}) {
+  const {state, dispatch} = useContext(Ctx);
+  const wishes = state.wishlist || [];
+  const [filterPriority, setFilterPriority] = useState('all');
+  const [filterComp, setFilterComp] = useState('all');
+  const [modal, setModal] = useState(null); // null | 'add' | {item}
+  const [scheduleWish, setScheduleWish] = useState(null); // wish being converted to vacation
+
+  const filtered = wishes.filter(w=>{
+    if(filterPriority!=='all' && w.priority!==filterPriority) return false;
+    if(filterComp!=='all' && w.composition!==filterComp) return false;
+    return true;
+  });
+
+  function handleSave(f) {
+    if(modal==='add') dispatch({t:'ADD_WISH', w:f});
+    else dispatch({t:'UPD_WISH', id:modal.id, u:f});
+    setModal(null);
+  }
+
+  function handleSchedule(w) {
+    // Convert wish to vacation: open AddVacModal logic via state flag
+    setScheduleWish(w);
+  }
+
+  const priorityOrder = {hot:0,dream:1,maybe:2};
+  const sorted = [...filtered].sort((a,b)=>(priorityOrder[a.priority]||1)-(priorityOrder[b.priority]||1));
+
+  return (
+    <div style={{padding:'20px',maxWidth:1000,margin:'0 auto'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:10}}>
+        <h1 style={{margin:0,fontSize:22,display:'flex',alignItems:'center',gap:8}}>🌟 חופשות חלום</h1>
+        <button className="btn btn-primary" onClick={()=>setModal('add')}>+ הוסף חלום</button>
+      </div>
+
+      <div className="wishlist-filters">
+        <button className={`ftab${filterPriority==='all'?' active':''}`} onClick={()=>setFilterPriority('all')}>הכל ({wishes.length})</button>
+        {WISH_PRIORITY.map(p=>(
+          <button key={p.key} className={`ftab${filterPriority===p.key?' active':''}`}
+            style={filterPriority===p.key?{background:p.color,borderColor:p.color,color:'#fff'}:{}}
+            onClick={()=>setFilterPriority(filterPriority===p.key?'all':p.key)}>
+            {p.label} ({wishes.filter(w=>w.priority===p.key).length})
+          </button>
+        ))}
+        <span style={{margin:'0 4px',color:'var(--text2)',alignSelf:'center'}}>|</span>
+        {['זוגי','משפחתי','רז','אלינור'].map(c=>(
+          <button key={c} className={`ftab${filterComp===c?' active':''}`}
+            onClick={()=>setFilterComp(filterComp===c?'all':c)}>{c}</button>
+        ))}
+      </div>
+
+      {sorted.length===0 && (
+        <div style={{textAlign:'center',padding:'60px 20px',color:'var(--text2)'}}>
+          <div style={{fontSize:48,marginBottom:12}}>🌟</div>
+          <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>אין חופשות חלום עדיין</div>
+          <div style={{fontSize:13}}>לחץ "+ הוסף חלום" כדי להוסיף את החופשה הראשונה שאתה מחלום עליה</div>
+        </div>
+      )}
+
+      <div className="wishlist-grid">
+        {sorted.map(w=>{
+          const pr = WISH_PRIORITY_MAP[w.priority] || WISH_PRIORITY_MAP.dream;
+          const cn = COUNTRIES.find(c=>c.code===w.countryCode);
+          return (
+            <div key={w.id} className="wcard" style={{borderRightColor:pr.color}}>
+              <div className="wcard-hdr">
+                <div>
+                  <div className="wcard-title">{w.name}</div>
+                  {(cn||w.countryName) && (
+                    <div className="wcard-country">
+                      {cn && <span style={{marginLeft:4}}>{countryFlag(w.countryCode)}</span>}
+                      {cn?.name||w.countryName}
+                    </div>
+                  )}
+                </div>
+                <div className="wcard-priority" title={pr.label}>{pr.label.split(' ')[0]}</div>
+              </div>
+              <div className="wcard-meta">
+                {w.estimatedDays && <span>📅 {w.estimatedDays} ימים</span>}
+                {w.composition && <span>👥 {w.composition}</span>}
+                {w.addedDate && <span style={{marginRight:'auto'}}>נוסף {fmtDate(w.addedDate)}</span>}
+              </div>
+              {w.notes && <div className="wcard-notes">{w.notes}</div>}
+              <div className="wcard-actions">
+                <button className="btn btn-primary btn-sm" style={{flex:1}} onClick={()=>handleSchedule(w)}>📅 קבע תאריך</button>
+                <button className="btn btn-secondary btn-sm" onClick={()=>setModal(w)}>✏️</button>
+                <button className="btn btn-secondary btn-sm" onClick={()=>{ if(confirm('למחוק את "'+w.name+'" מרשימת החלומות?')) dispatch({t:'DEL_WISH',id:w.id}); }}>🗑️</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {modal && (
+        <WishModal
+          item={modal==='add'?null:modal}
+          onClose={()=>setModal(null)}
+          onSave={handleSave}
+        />
+      )}
+
+      {scheduleWish && (
+        <ScheduleWishModal
+          wish={scheduleWish}
+          onClose={()=>setScheduleWish(null)}
+          onScheduled={(vacId)=>{
+            if(confirm('הוסף לרשימת החופשות! האם למחוק מרשימת החלומות?'))
+              dispatch({t:'DEL_WISH',id:scheduleWish.id});
+            setScheduleWish(null);
+            onGoToVac && onGoToVac(vacId);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ScheduleWishModal({wish, onClose, onScheduled}) {
+  const {dispatch} = useContext(Ctx);
+  const cn = COUNTRIES.find(c=>c.code===wish.countryCode);
+  const [f,setF] = useState({
+    name: wish.name,
+    type: 'planned',
+    countryCode: wish.countryCode||'',
+    countryName: cn?.name||wish.countryName||'',
+    composition: wish.composition||'',
+    startDate: '',
+    endDate: '',
+  });
+  function save(){
+    if(!f.startDate||!f.endDate) return;
+    const id = genId();
+    dispatch({t:'ADD_VAC', v:{...f, id, expenses:[], travelers:[]}});
+    onScheduled(id);
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>📅 קבע תאריך לחופשה</h2>
+        <div style={{background:'var(--bg)',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:13,color:'var(--text2)'}}>
+          מעביר את "<strong style={{color:'var(--text)'}}>{wish.name}</strong>" מרשימת החלומות לחופשה מתוכננת
+        </div>
+        <div className="fg"><label>שם</label>
+          <input className="input" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+        </div>
+        <div className="fg"><label>סוג</label>
+          <div className="type-btns">
+            {Object.entries(TYPE_LABELS).map(([k,v])=>(
+              <button key={k} className={`type-btn${f.type===k?' active':''}`} style={{'--tc':COLORS[k]}} onClick={()=>setF({...f,type:k})}>{v}</button>
+            ))}
+          </div>
+        </div>
+        <div className="fg"><label>מדינה</label>
+          <select className="input" value={f.countryCode} onChange={e=>{const c=COUNTRIES.find(x=>x.code===e.target.value);setF({...f,countryCode:e.target.value,countryName:c?.name||''});}}>
+            <option value="">בחר מדינה...</option>
+            {[...COUNTRIES].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(c=><option key={c.code} value={c.code}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="form-row">
+          <div className="fg"><label>תאריך התחלה</label><input className="input" type="date" value={f.startDate} onChange={e=>setF({...f,startDate:e.target.value})}/></div>
+          <div className="fg"><label>תאריך סיום</label><input className="input" type="date" value={f.endDate} onChange={e=>setF({...f,endDate:e.target.value})}/></div>
+        </div>
+        <div className="fg"><label>הרכב</label>
+          <select className="input" value={f.composition} onChange={e=>setF({...f,composition:e.target.value})}>
+            <option value="">בחר הרכב...</option>
+            {['רז','אלינור','זוגי','משפחתי'].map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={save} disabled={!f.startDate||!f.endDate}>שמור חופשה</button>
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [route,setRoute]=useState('/calendar');
   const [user,setUser]=useState(undefined);
   const [navOpen,setNavOpen]=useState(window.innerWidth>640);
   const [focusVacId,setFocusVacId]=useState(null);
   const [plannerVacId,setPlannerVacId]=useState(null);
-  const Page={'/calendar':CalendarPage,'/planner':DailyPlannerPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/dashboard':DashboardPage,'/travelers':TravelersPage,'/settings':SettingsPage}[route]||CalendarPage;
+  const Page={'/calendar':CalendarPage,'/planner':DailyPlannerPage,'/map':WorldMapPage,'/vacations':VacationsPage,'/wishlist':WishListPage,'/dashboard':DashboardPage,'/travelers':TravelersPage,'/settings':SettingsPage}[route]||CalendarPage;
   function goToVac(id){setFocusVacId(id);setRoute('/vacations');}
   function clearFocus(){setFocusVacId(null);}
   function goToPlanner(id){setPlannerVacId(id);setRoute('/planner');}
