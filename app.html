@@ -2568,6 +2568,7 @@ function DailyPlannerPage({plannerVacId}) {
   },[]);
 
   function saveItinerary(next, notes, nextSpans) {
+    if(!loaded) return; // אל תשמור לפני שהנתונים נטענו
     const nextNotes = notes !== undefined ? notes : dayNotes;
     const saveSpans = nextSpans !== undefined ? nextSpans : spans;
     setItinerary(next);
