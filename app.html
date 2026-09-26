@@ -2541,28 +2541,45 @@ function DailyPlannerPage({plannerVacId}) {
     [state.vacations]
   );
   const years = useMemo(()=>[...new Set(allVacs.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a), [allVacs]);
+  const LAST_VAC_KEY = 'dp-last-vac-id';
+
+  // בחר vacId התחלתי: קישור ישיר > localStorage > null
+  const [selVacId, setSelVacId] = useState(()=>
+    plannerVacId || localStorage.getItem(LAST_VAC_KEY) || null
+  );
+
+  // שמור vacId נבחר ב-localStorage
+  function selectVac(id) {
+    setSelVacId(id);
+    if(id) localStorage.setItem(LAST_VAC_KEY, id);
+    setSelDay(null);
+  }
+
+  // חשב yearFilter מהטיול הנבחר (או הקרוב ביותר)
   const [yearFilter, setYearFilter] = useState(()=>String(new Date().getFullYear()));
 
-  // בטעינה ראשונה — עבור לשנה עם הטיול הקרוב ביותר (עתידי)
-  const didAutoYear = useRef(false);
+  // כשהטיולים נטענים — כוון yearFilter לפי הטיול הנבחר
   useEffect(()=>{
-    if(didAutoYear.current || !allVacs.length) return;
-    didAutoYear.current = true;
+    if(!allVacs.length) return;
+    const saved = selVacId || localStorage.getItem(LAST_VAC_KEY);
+    const savedVac = saved && allVacs.find(v=>v.id===saved);
+    if(savedVac) { setYearFilter(savedVac.startDate.slice(0,4)); return; }
+    // אין טיול שמור — בחר טיול עתידי קרוב ביותר
     const today = new Date().toISOString().slice(0,10);
     const future = [...allVacs].filter(v=>v.endDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate));
-    const best = future.length ? future[0] : null;
-    if(best) setYearFilter(best.startDate.slice(0,4));
+    const best = future[0] || [...allVacs].sort((a,b)=>b.startDate.localeCompare(a.startDate))[0];
+    if(best) { setYearFilter(best.startDate.slice(0,4)); selectVac(best.id); }
   },[allVacs]);
 
-  const vacs = useMemo(()=>allVacs.filter(v=>!yearFilter||v.startDate.startsWith(yearFilter)), [allVacs,yearFilter]);
-  const [selVacId, setSelVacId] = useState(plannerVacId||null);
-  // אם הגענו מקישור חופשה — ודא שהשנה מסוננת נכון
+  // אם הגענו מקישור חופשה — עדכן בחירה
   useEffect(()=>{
     if(!plannerVacId) return;
     const vac = allVacs.find(v=>v.id===plannerVacId);
-    if(vac){ setYearFilter(vac.startDate.slice(0,4)); setSelVacId(plannerVacId); setSelDay(null); }
+    if(vac) { setYearFilter(vac.startDate.slice(0,4)); selectVac(plannerVacId); }
   },[plannerVacId]);
-  const selVac = (selVacId && vacs.find(v=>v.id===selVacId)) || vacs[0] || null;
+
+  const vacs = useMemo(()=>allVacs.filter(v=>!yearFilter||v.startDate.startsWith(yearFilter)), [allVacs,yearFilter]);
+  const selVac = (selVacId && allVacs.find(v=>v.id===selVacId)) || vacs[0] || null;
 
   // ימים של החופשה הנבחרת
   const days = useMemo(()=> selVac ? dateRange(selVac.startDate, selVac.endDate) : [], [selVac]);
@@ -2659,14 +2676,14 @@ function DailyPlannerPage({plannerVacId}) {
           <div className="dp-year-tabs">
             {years.map(y=>(
               <button key={y} className={`dp-year-tab${yearFilter===y?' active':''}`}
-                onClick={()=>{setYearFilter(y);setSelVacId(null);setSelDay(null);}}>
+                onClick={()=>{setYearFilter(y);setSelVacId(null);}}>
                 {y}
               </button>
             ))}
           </div>
           <select className="dp-select"
             value={selVac?.id||''}
-            onChange={e=>{setSelVacId(e.target.value);setSelDay(null);}}>
+            onChange={e=>selectVac(e.target.value)}>
             {vacs.map(v=>(
               <option key={v.id} value={v.id}>{v.name} ({fmtDate(v.startDate)})</option>
             ))}
