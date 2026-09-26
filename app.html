@@ -2543,14 +2543,14 @@ function DailyPlannerPage({plannerVacId}) {
   const years = useMemo(()=>[...new Set(allVacs.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a), [allVacs]);
   const [yearFilter, setYearFilter] = useState(()=>String(new Date().getFullYear()));
 
-  // אם אין טיולים בשנה הנבחרת — עבור לשנה עם הטיול הקרוב ביותר
+  // בטעינה ראשונה — עבור לשנה עם הטיול הקרוב ביותר (עתידי)
+  const didAutoYear = useRef(false);
   useEffect(()=>{
-    if(!allVacs.length) return;
-    const hasInYear = allVacs.some(v=>v.startDate.startsWith(yearFilter));
-    if(hasInYear) return;
+    if(didAutoYear.current || !allVacs.length) return;
+    didAutoYear.current = true;
     const today = new Date().toISOString().slice(0,10);
     const future = [...allVacs].filter(v=>v.endDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate));
-    const best = future.length ? future[0] : [...allVacs].sort((a,b)=>b.startDate.localeCompare(a.startDate))[0];
+    const best = future.length ? future[0] : null;
     if(best) setYearFilter(best.startDate.slice(0,4));
   },[allVacs]);
 
