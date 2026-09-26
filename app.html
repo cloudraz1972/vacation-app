@@ -2579,21 +2579,34 @@ function DailyPlannerPage({plannerVacId}) {
     }).catch(()=>setLoaded(true));
   },[]);
 
-  function saveItinerary(next, notes, nextSpans) {
-    if(!loaded) return; // אל תשמור לפני שהנתונים נטענו
+  const pendingSave = useRef(null); // שומר את הנתונים האחרונים לשמירה
+  function saveItinerary(next, notes, nextSpans, immediate) {
+    if(!loaded) return;
     const nextNotes = notes !== undefined ? notes : dayNotes;
     const saveSpans = nextSpans !== undefined ? nextSpans : spans;
     setItinerary(next);
     if(notes !== undefined) setDayNotes(notes);
     if(nextSpans !== undefined) setSpans(nextSpans);
+    pendingSave.current = {days: next, notes: nextNotes, spans: saveSpans};
     clearTimeout(saveTimer.current);
     setSaving(true);
+    const delay = immediate ? 0 : 800;
     saveTimer.current = setTimeout(async ()=>{
-      try { await ITINERARY_DOC.set({days: next, notes: nextNotes, spans: saveSpans}); }
+      const data = pendingSave.current;
+      if(!data) return;
+      pendingSave.current = null;
+      try { await ITINERARY_DOC.set(data); }
       catch(e) { alert('שגיאה בשמירה: '+e.message); }
       setSaving(false);
-    }, 800);
+    }, delay);
   }
+  // שמור מיד כשעוזבים את הדף
+  useEffect(()=>{
+    return ()=>{
+      clearTimeout(saveTimer.current);
+      if(pendingSave.current) ITINERARY_DOC.set(pendingSave.current).catch(()=>{});
+    };
+  },[]);
 
   function addSpan(sp) { saveItinerary(itinerary, undefined, [...spans, {...sp, id:genId()}]); }
   function delSpan(id) { saveItinerary(itinerary, undefined, spans.filter(s=>s.id!==id)); }
@@ -2722,6 +2735,10 @@ function DailyPlannerPage({plannerVacId}) {
                 onChange={e=>{
                   const next={...dayNotes,[activeDay]:e.target.value};
                   saveItinerary(itinerary, next);
+                }}
+                onBlur={e=>{
+                  const next={...dayNotes,[activeDay]:e.target.value};
+                  saveItinerary(itinerary, next, undefined, true); // שמור מיד בעזיבת השדה
                 }}
                 rows={2}
                 style={{marginTop:8,marginBottom:4,fontSize:13,resize:'vertical',width:'100%',boxSizing:'border-box'}}
