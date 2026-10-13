@@ -2437,7 +2437,14 @@ function TravelerCard({t, dispatch}) {
               <span className="titem-text">
                 {pp.country && countryFlag(COUNTRIES.find(c=>c.name===pp.country)?.code||'')} {pp.country} · {pp.number} · {pp.expiry?fmtDate(pp.expiry):'ללא תוקף'}
               </span>
-              {pp.photoUrl && <button className="btn btn-icon btn-sm" title="פתח צילום" onClick={()=>window.open(pp.photoUrl,'_blank')}>📷</button>}
+              {pp.photoUrl && <button className="btn btn-icon btn-sm" title="פתח צילום" onClick={async()=>{
+                try {
+                  const r = await fetch(pp.photoUrl,{method:'HEAD'});
+                  if(r.ok) { window.open(pp.photoUrl,'_blank'); }
+                  else if(r.status===402) alert('שגיאת גישה לקובץ (402): חשבון החיוב של Firebase מנוטרל.\nיש להפעיל את חשבון החיוב ב-console.cloud.google.com/billing');
+                  else { window.open(pp.photoUrl,'_blank'); }
+                } catch(e) { window.open(pp.photoUrl,'_blank'); }
+              }}>📷</button>}
               <button className="btn btn-icon btn-sm" onClick={()=>setPpModal({mode:'edit',pp})}>✏️</button>
               <button className="btn btn-icon btn-sm" onClick={()=>delPassport(pp.id)}>🗑️</button>
             </div>
