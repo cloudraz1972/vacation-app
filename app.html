@@ -41,7 +41,7 @@
   --blue:#3B82F6;--yellow:#FCD34D;--green:#10B981;--red:#EF4444;
   --nav:200px;--r:10px;--sh:0 1px 3px rgba(0,0,0,.08);--shm:0 4px 12px rgba(0,0,0,.12);
 }
-html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Segoe UI',system-ui,sans-serif;height:100%}
+html,body{direction:rtl;background:var(--bg);color:var(--text);font:15px/1.6 'Segoe UI',system-ui,sans-serif;height:100%}
 #root{display:flex;min-height:100vh}
 /* Nav */
 .nav{width:var(--nav);background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;position:fixed;right:0;top:0;bottom:0;z-index:100;box-shadow:-2px 0 8px rgba(0,0,0,.04);transition:transform .25s ease}
@@ -66,13 +66,13 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
   .main{margin-right:0;padding:16px}
   .nav-toggle{top:10px;right:10px}
   .page-header{flex-direction:column;align-items:flex-start}
-  .stats-grid{grid-template-columns:1fr 1fr}
+  .stat-cards{grid-template-columns:1fr 1fr}
   .form-row{flex-direction:column}
   .modal{width:95vw!important;max-width:95vw!important;padding:20px!important}
 }
 .page{max-width:1200px}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-.page-title{font-size:24px;font-weight:700}
+.page-title{font-size:26px;font-weight:700}
 /* Buttons */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500;transition:.15s;white-space:nowrap}
 .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#2563EB}
@@ -200,7 +200,7 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .tcard-actions{display:flex;gap:4px;flex-shrink:0}
 .tcard-body{padding:0 14px 12px;display:flex;flex-direction:column;gap:8px}
 .tsec{border-top:1px solid var(--border);padding-top:8px}
-.tsec-title{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+.tsec-title{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
 .titem{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;color:var(--text)}
 .titem-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .titem-add{font-size:11px;color:var(--blue);cursor:pointer;margin-top:2px;display:inline-block}
@@ -242,7 +242,7 @@ html,body{direction:rtl;background:var(--bg);color:var(--text);font:14px/1.5 'Se
 .exp-mob-btn{display:none}
 @media(max-width:700px){.exp-mob-btn{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px}}
 .exp-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:flex-end;justify-content:center}
-.exp-modal{background:var(--card);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:24px 20px 32px;direction:rtl;max-height:90vh;overflow-y:auto}
+.exp-modal{background:var(--surface);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:24px 20px 32px;direction:rtl;max-height:90vh;overflow-y:auto}
 .exp-modal-title{font-size:16px;font-weight:700;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
 .exp-modal-field{margin-bottom:14px}
 .exp-modal-field label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
@@ -262,7 +262,7 @@ tr:hover td{background:#FAFAFA}
 /* Dashboard */
 .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:28px}
 .stat-card{background:var(--surface);border-radius:var(--r);padding:20px;box-shadow:var(--sh);border-top:3px solid var(--border);text-align:center}
-.stat-val{font-size:26px;font-weight:800;margin-bottom:4px}
+.stat-val{font-size:28px;font-weight:800;margin-bottom:4px}
 .stat-lbl{font-size:12px;color:var(--text2);font-weight:500}
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
 @media(max-width:900px){.charts-grid{grid-template-columns:1fr}}
@@ -313,7 +313,7 @@ tr:hover td{background:#FAFAFA}
 const { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext, useReducer } = React;
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const COLORS = { school:'#3B82F6', planned:'#FCD34D', paid:'#10B981', health:'#1E1E1E', closed:'#EF4444', work:'#6B7280', note:'#F97316' };
+const COLORS = { school:'#3B82F6', planned:'#FCD34D', paid:'#10B981', health:'#7C3AED', closed:'#EF4444', work:'#6B7280', note:'#F97316' };
 const TYPE_LABELS = { school:'חופשת בית ספר', planned:'מתוכננת', paid:'משולמת', health:'בריאות', closed:'יומן סגור', work:'נסיעת עבודה', note:'לעדכון בלבד' };
 const VACATION_TYPES = ['school','planned','paid']; // types that appear on map/expenses
 const HEB_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -689,7 +689,12 @@ function AuthScreen() {
 }
 
 function Nav({route, setRoute, user, open, setOpen}) {
-  const isMobile = window.innerWidth <= 640;
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 640);
+  useEffect(()=>{
+    const handler = ()=>setIsMobile(window.innerWidth <= 640);
+    window.addEventListener('resize', handler);
+    return ()=>window.removeEventListener('resize', handler);
+  },[]);
   function navigate(path) { setRoute(path); if(isMobile) setOpen(false); }
   return (
     <>
@@ -1854,7 +1859,7 @@ function SettingsPage() {
         <h2>אודות</h2>
         <p className="settings-hint">
           מנהל חופשות — אפליקציית ניהול ומעקב חופשות משפחתיות.<br/>
-          כל הנתונים נשמרים ב-localStorage במכשיר זה בלבד.
+          כל הנתונים נשמרים ב-Firebase Firestore בענן.
         </p>
       </div>
     </div>
