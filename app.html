@@ -1612,8 +1612,8 @@ function VacationsPage({focusVacId, onClearFocus, onGoToPlanner}) {
   useEffect(()=>{
     if(!focusVacId||!focusRef.current) return;
     const el=focusRef.current;
-    setTimeout(()=>{el.scrollIntoView({behavior:'smooth',block:'center'});if(onClearFocus)onClearFocus();},400);
-  },[focusVacId]);
+    setTimeout(()=>{el.scrollIntoView({behavior:'smooth',block:'center'});if(onClearFocus)onClearFocus();},150);
+  },[focusVacId, yearFilter]);
   const years=useMemo(()=>[...new Set(state.vacations.map(v=>v.startDate.slice(0,4)))].sort((a,b)=>b-a),[state.vacations]);
 
   function toggleType(v) {
