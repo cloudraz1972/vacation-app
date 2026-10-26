@@ -2202,12 +2202,42 @@ const VAC_DOC_SUBTYPES = [
 
 function VacDocsTab({vacId, docs, dispatch}) {
   const [showAdd, setShowAdd] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [editUploading, setEditUploading] = useState(false);
+  const [editProgress, setEditProgress] = useState(0);
+  const [editErr, setEditErr] = useState('');
+  const [editFile, setEditFile] = useState(null);
+  const editFileRef = useRef();
   const fileRef = useRef();
   const [addForm, setAddForm] = useState({subtype:'flight', label:'', url:'', file:null});
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
   const [dragOver, setDragOver] = useState(false);
+
+  function startEdit(d) {
+    setEditId(d.id);
+    setEditForm({subtype:d.subtype||'flight', label:d.label||'', url:d.url||'', fileUrl:d.fileUrl||'', fileName:d.fileName||''});
+    setEditFile(null); setEditErr(''); setEditProgress(0);
+    setShowAdd(false);
+  }
+
+  async function handleEditSave() {
+    if(!editForm.label) return;
+    setEditUploading(true); setEditErr('');
+    try {
+      let fileUrl = editForm.fileUrl;
+      let fileName = editForm.fileName;
+      if(editFile) {
+        fileUrl = await uploadVacDoc(editFile, editId, pct=>setEditProgress(pct));
+        fileName = editFile.name;
+      }
+      dispatch({t:'UPD_VAC_DOC', vid:vacId, did:editId, u:{subtype:editForm.subtype, label:editForm.label, url:editForm.url, fileUrl, fileName}});
+      setEditId(null); setEditForm(null); setEditFile(null);
+    } catch(e){ setEditErr(e.message); }
+    finally{ setEditUploading(false); setEditProgress(0); }
+  }
 
   async function handleAdd() {
     if(!addForm.label) return;
@@ -2230,6 +2260,33 @@ function VacDocsTab({vacId, docs, dispatch}) {
     <div style={{padding:'12px 0'}}>
       {(docs||[]).map(d=>{
         const st = VAC_DOC_SUBTYPES.find(s=>s.key===d.subtype)||VAC_DOC_SUBTYPES[5];
+        if(editId===d.id && editForm) return (
+          <div key={d.id} style={{background:'var(--bg)',borderRadius:10,padding:14,marginBottom:8,display:'flex',flexDirection:'column',gap:10,border:'1px solid var(--blue)'}}>
+            <div style={{fontWeight:600,fontSize:13,color:'var(--blue)'}}>עריכת מסמך</div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {VAC_DOC_SUBTYPES.map(s=>(
+                <button key={s.key} className={`btn btn-sm ${editForm.subtype===s.key?'btn-primary':'btn-secondary'}`}
+                  onClick={()=>setEditForm(f=>({...f,subtype:s.key}))}>{s.icon} {s.label}</button>
+              ))}
+            </div>
+            <input className="input" value={editForm.label} onChange={e=>setEditForm(f=>({...f,label:e.target.value}))} placeholder="שם המסמך"/>
+            <input className="input" dir="ltr" value={editForm.url} onChange={e=>setEditForm(f=>({...f,url:e.target.value}))} placeholder="קישור (https://...) — אופציונלי"/>
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+              <button className="btn btn-secondary btn-sm" onClick={()=>editFileRef.current.click()}>
+                {editFile ? `📎 ${editFile.name}` : (editForm.fileUrl ? '🔄 החלף קובץ' : '📎 צרף קובץ')}
+              </button>
+              {editForm.fileUrl&&!editFile&&<span style={{fontSize:12,color:'var(--text2)'}}>קובץ קיים: {editForm.fileName||'קובץ'}</span>}
+              <input ref={editFileRef} type="file" style={{display:'none'}} accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={e=>{if(e.target.files[0]) setEditFile(e.target.files[0]);}}/>
+            </div>
+            {editUploading&&<div style={{fontSize:13,color:'var(--blue)'}}>מעלה... {editProgress}%</div>}
+            {editErr&&<div style={{color:'#EF4444',fontSize:13}}>{editErr}</div>}
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-primary btn-sm" onClick={handleEditSave} disabled={editUploading||!editForm.label}>שמור</button>
+              <button className="btn btn-secondary btn-sm" onClick={()=>{setEditId(null);setEditForm(null);}} disabled={editUploading}>ביטול</button>
+            </div>
+          </div>
+        );
         return (
           <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 4px',borderBottom:'1px solid var(--border)'}}>
             <span style={{fontSize:20}}>{st.icon}</span>
@@ -2242,6 +2299,7 @@ function VacDocsTab({vacId, docs, dispatch}) {
                 {d.fileUrl?'⬇️ פתח':'🔗 פתח'}
               </a>
             )}
+            <button className="btn btn-icon btn-sm" title="ערוך" onClick={()=>startEdit(d)}>✏️</button>
             <button className="btn btn-icon btn-sm" onClick={()=>dispatch({t:'DEL_VAC_DOC',vid:vacId,did:d.id})}>🗑️</button>
           </div>
         );
