@@ -483,16 +483,24 @@ function reducer(s, a) {
 function StoreProvider({children}) {
   const [state, dispatch] = useReducer(reducer, initState);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [travelersLoaded, setTravelersLoaded] = useState(false);
   const saveTimer = useRef(null);
   const travSaveTimer = useRef(null);
   const travelersRef = useRef([]);
+  // true only after a successful LOAD — guards against saving empty state on load failure
+  const loadOk = useRef(false);
 
   useEffect(()=>{
     STATE_DOC.get().then(doc=>{
       if(doc.exists) dispatch({t:'LOAD', s:doc.data()});
+      loadOk.current = true;
       setLoaded(true);
-    }).catch(()=>setLoaded(true));
+    }).catch(e=>{
+      console.error('שגיאת טעינה:', e);
+      setLoadError(e.message||'שגיאה לא ידועה');
+      setLoaded(true);
+    });
   },[]);
 
   useEffect(()=>{
@@ -508,7 +516,7 @@ function StoreProvider({children}) {
   useEffect(()=>{ stateRef.current = state; },[state]);
 
   useEffect(()=>{
-    if(!loaded) return;
+    if(!loaded || !loadOk.current) return;
     async function save(){
       try {
         const {travelers, ...mainState} = stateRef.current;
@@ -538,6 +546,16 @@ function StoreProvider({children}) {
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:16,color:'#64748B'}}>
       <div style={{fontSize:32}}>🌴</div>
       <div>טוען נתונים...</div>
+    </div>
+  );
+
+  if(loadError) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:16,color:'#64748B',padding:32,textAlign:'center'}}>
+      <div style={{fontSize:40}}>⚠️</div>
+      <div style={{fontSize:18,fontWeight:700,color:'#EF4444'}}>שגיאה בטעינת נתונים</div>
+      <div style={{fontSize:14,maxWidth:400,lineHeight:1.8}}>{loadError}</div>
+      <div style={{fontSize:13,color:'#94A3B8'}}>הנתונים לא נמחקו. בדוק חיבור אינטרנט ורענן את הדף.</div>
+      <button className="btn btn-primary" onClick={()=>window.location.reload()}>🔄 רענן</button>
     </div>
   );
   return <Ctx.Provider value={{state,dispatch}}>{children}</Ctx.Provider>;
