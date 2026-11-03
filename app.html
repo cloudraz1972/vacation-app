@@ -1874,6 +1874,41 @@ function SettingsPage() {
         </div>
       </div>
       <div className="settings-sec">
+        <h2>גיבוי ושחזור נתונים</h2>
+        <p className="settings-hint">ייצא את כל נתוני האפליקציה לקובץ JSON לגיבוי ידני, או ייבא מקובץ גיבוי קיים לשחזור.</p>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+          <button className="btn btn-secondary" onClick={()=>{
+            const {travelers,...main}=state;
+            const backup={exportDate:new Date().toISOString(),version:2,state:{...main,travelers}};
+            const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement('a');
+            a.href=url; a.download=`vacation-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+            URL.revokeObjectURL(url);
+          }}>⬇️ ייצא גיבוי JSON</button>
+          <label className="btn btn-secondary" style={{cursor:'pointer'}}>
+            ⬆️ ייבא גיבוי JSON
+            <input type="file" accept=".json" style={{display:'none'}} onChange={e=>{
+              const file=e.target.files[0]; if(!file) return;
+              const reader=new FileReader();
+              reader.onload=ev=>{
+                try {
+                  const backup=JSON.parse(ev.target.result);
+                  const s=backup.state||backup;
+                  if(!s.vacations) { alert('קובץ גיבוי לא תקין'); return; }
+                  if(!confirm(`ייבוא יחליף את כל הנתונים הנוכחיים.\nגיבוי מתאריך: ${backup.exportDate||'לא ידוע'}\nחופשות: ${s.vacations.length}\nהמשך?`)) return;
+                  dispatch({t:'LOAD', s});
+                  if(s.travelers) dispatch({t:'LOAD_TRAVELERS', travelers:s.travelers});
+                  alert('הנתונים יובאו בהצלחה ✓');
+                } catch(err) { alert('שגיאה בקריאת הקובץ: '+err.message); }
+              };
+              reader.readAsText(file);
+              e.target.value='';
+            }}/>
+          </label>
+        </div>
+      </div>
+      <div className="settings-sec">
         <h2>אודות</h2>
         <p className="settings-hint">
           מנהל חופשות — אפליקציית ניהול ומעקב חופשות משפחתיות.<br/>
