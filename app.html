@@ -14,6 +14,7 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
 <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -447,7 +448,7 @@ function dateRange(a, b) {
 // ── Store ──────────────────────────────────────────────────────────────────
 const Ctx = createContext(null);
 const SKEY = 'vacation-app-v2';
-const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], docTypes: [...DEFAULT_DOC_TYPES], travelers: [], anthropicKey: '', wishlist: [] };
+const initState = { year: new Date().getFullYear(), vacations: [], cats: [...DEFAULT_CATS], docTypes: [...DEFAULT_DOC_TYPES], travelers: [], anthropicKey: '', wishlist: [], emailjsServiceId:'', emailjsTemplateId:'', emailjsPublicKey:'', emailjsTo:'' };
 
 function reducer(s, a) {
   switch(a.t) {
@@ -469,6 +470,7 @@ function reducer(s, a) {
     case 'DEL_DOC_TYPE': return {...s, docTypes:(s.docTypes||[]).filter(c=>c!==a.n)};
     case 'LOAD': return {...initState,...a.s,travelers:s.travelers};
     case 'SET_ANTHROPIC_KEY': return {...s, anthropicKey:a.key};
+    case 'SET_EMAILJS': return {...s, emailjsServiceId:a.serviceId, emailjsTemplateId:a.templateId, emailjsPublicKey:a.publicKey, emailjsTo:a.to};
     case 'ADD_WISH': return {...s, wishlist:[...(s.wishlist||[]),{...a.w,id:genId(),addedDate:new Date().toISOString().slice(0,10)}]};
     case 'UPD_WISH': return {...s, wishlist:(s.wishlist||[]).map(w=>w.id===a.id?{...w,...a.u}:w)};
     case 'DEL_WISH': return {...s, wishlist:(s.wishlist||[]).filter(w=>w.id!==a.id)};
@@ -1864,6 +1866,38 @@ function SettingsPage() {
           <input className="input" value={newDt} onChange={e=>setNewDt(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addDt()} placeholder="סוג תעודה חדש"/>
           <button className="btn btn-primary" onClick={addDt}>+ הוסף</button>
         </div>
+      </div>
+      <div className="settings-sec">
+        <h2>גיבוי אוטומטי במייל (EmailJS)</h2>
+        <p className="settings-hint">בכל גיבוי שבועי תישלח הודעת אישור למייל עם סיכום הנתונים. הקובץ עצמו יורד למחשב.<br/>
+          להגדרה: <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" style={{color:'var(--blue)'}}>emailjs.com</a> → צור חשבון → הוסף Email Service → צור Template → העתק את הפרטים לכאן.</p>
+        {(()=>{
+          const [f,setF]=useState({serviceId:state.emailjsServiceId||'',templateId:state.emailjsTemplateId||'',publicKey:state.emailjsPublicKey||'',to:state.emailjsTo||''});
+          const [testMsg,setTestMsg]=useState('');
+          const configured = f.serviceId&&f.templateId&&f.publicKey&&f.to;
+          return (<>
+            <div className="form-row" style={{marginBottom:8}}>
+              <div className="fg"><label>Service ID</label><input className="input input-sm" dir="ltr" placeholder="service_xxxxxxx" value={f.serviceId} onChange={e=>setF(p=>({...p,serviceId:e.target.value}))}/></div>
+              <div className="fg"><label>Template ID</label><input className="input input-sm" dir="ltr" placeholder="template_xxxxxxx" value={f.templateId} onChange={e=>setF(p=>({...p,templateId:e.target.value}))}/></div>
+            </div>
+            <div className="form-row" style={{marginBottom:12}}>
+              <div className="fg"><label>Public Key</label><input className="input input-sm" dir="ltr" placeholder="xxxxxxxxxxxxxxx" value={f.publicKey} onChange={e=>setF(p=>({...p,publicKey:e.target.value}))}/></div>
+              <div className="fg"><label>שלח לכתובת</label><input className="input input-sm" dir="ltr" placeholder="you@email.com" value={f.to} onChange={e=>setF(p=>({...p,to:e.target.value}))}/></div>
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+              <button className="btn btn-primary btn-sm" onClick={()=>{dispatch({t:'SET_EMAILJS',serviceId:f.serviceId,templateId:f.templateId,publicKey:f.publicKey,to:f.to});setTestMsg('נשמר ✓');}}>שמור</button>
+              {configured&&<button className="btn btn-secondary btn-sm" onClick={async()=>{
+                setTestMsg('שולח...');
+                try {
+                  emailjs.init({publicKey:f.publicKey});
+                  await emailjs.send(f.serviceId,f.templateId,{to_email:f.to,backup_date:new Date().toLocaleDateString('he-IL'),vacations_count:String(state.vacations.length),travelers_count:String((state.travelers||[]).length),wishlist_count:String((state.wishlist||[]).length),planner_days:'—'});
+                  setTestMsg('מייל נשלח בהצלחה ✓');
+                } catch(e){setTestMsg('שגיאה: '+e.text);}
+              }}>שלח מייל בדיקה</button>}
+              {testMsg&&<span style={{fontSize:13,color:testMsg.includes('שגיאה')?'#EF4444':'#10B981'}}>{testMsg}</span>}
+            </div>
+          </>);
+        })()}
       </div>
       <div className="settings-sec">
         <h2>סריקת דרכון (AI)</h2>
@@ -3283,7 +3317,23 @@ async function runAutoBackup(state) {
     const a = document.createElement('a');
     a.href=url; a.download=`vacation-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
     URL.revokeObjectURL(url);
-    localStorage.setItem(BACKUP_KEY, new Date().toISOString());
+    const now = new Date().toISOString();
+    localStorage.setItem(BACKUP_KEY, now);
+    // שלח מייל אם EmailJS מוגדר
+    const {emailjsServiceId,emailjsTemplateId,emailjsPublicKey,emailjsTo} = state;
+    if(emailjsServiceId && emailjsTemplateId && emailjsPublicKey && emailjsTo) {
+      try {
+        emailjs.init({publicKey: emailjsPublicKey});
+        await emailjs.send(emailjsServiceId, emailjsTemplateId, {
+          to_email: emailjsTo,
+          backup_date: new Date().toLocaleDateString('he-IL'),
+          vacations_count: String(state.vacations.length),
+          travelers_count: String((state.travelers||[]).length),
+          wishlist_count: String((state.wishlist||[]).length),
+          planner_days: String(Object.keys(itinerary.days||{}).length),
+        });
+      } catch(emailErr) { console.error('EmailJS error:', emailErr); }
+    }
     return true;
   } catch(e) { console.error('auto backup failed:', e); return false; }
 }
