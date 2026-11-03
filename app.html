@@ -1878,17 +1878,8 @@ function SettingsPage() {
         <p className="settings-hint">ייצא את כל נתוני האפליקציה לקובץ JSON לגיבוי ידני, או ייבא מקובץ גיבוי קיים לשחזור.</p>
         <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
           <button className="btn btn-secondary" onClick={async()=>{
-            try {
-              const itDoc = await ITINERARY_DOC.get();
-              const itinerary = itDoc.exists ? itDoc.data() : {};
-              const {travelers,...main}=state;
-              const backup={exportDate:new Date().toISOString(),version:3,state:{...main,travelers},itinerary};
-              const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
-              const url=URL.createObjectURL(blob);
-              const a=document.createElement('a');
-              a.href=url; a.download=`vacation-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
-              URL.revokeObjectURL(url);
-            } catch(err){ alert('שגיאה בייצוא: '+err.message); }
+            const ok = await runAutoBackup(state);
+            if(!ok) alert('שגיאה בייצוא');
           }}>⬇️ ייצא גיבוי JSON</button>
           <label className="btn btn-secondary" style={{cursor:'pointer'}}>
             ⬆️ ייבא גיבוי JSON
@@ -3277,6 +3268,57 @@ function ActivityRow({act, onDel, onUpd, color}) {
   );
 }
 
+// ── Auto Weekly Backup ─────────────────────────────────────────────────────
+const BACKUP_KEY = 'vacation-last-backup';
+const BACKUP_INTERVAL_DAYS = 7;
+
+async function runAutoBackup(state) {
+  try {
+    const itDoc = await ITINERARY_DOC.get();
+    const itinerary = itDoc.exists ? itDoc.data() : {};
+    const {travelers,...main} = state;
+    const backup = {exportDate:new Date().toISOString(), version:3, state:{...main,travelers}, itinerary};
+    const blob = new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=`vacation-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+    URL.revokeObjectURL(url);
+    localStorage.setItem(BACKUP_KEY, new Date().toISOString());
+    return true;
+  } catch(e) { console.error('auto backup failed:', e); return false; }
+}
+
+function AutoBackupBanner() {
+  const {state} = useContext(Ctx);
+  const [show, setShow] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(()=>{
+    try {
+      const last = localStorage.getItem(BACKUP_KEY);
+      if(!last) { setShow(true); return; }
+      const daysSince = (Date.now() - new Date(last).getTime()) / 86400000;
+      if(daysSince >= BACKUP_INTERVAL_DAYS) setShow(true);
+    } catch(e){}
+  },[]);
+
+  if(!show || done) return null;
+  return (
+    <div style={{background:'#FEF3C7',borderBottom:'2px solid #F59E0B',padding:'10px 20px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',direction:'rtl',fontSize:13}}>
+      <span style={{fontWeight:700,color:'#92400E'}}>💾 הגיע הזמן לגיבוי שבועי</span>
+      <span style={{color:'#78350F',flex:1}}>לא בוצע גיבוי ב-{BACKUP_INTERVAL_DAYS} הימים האחרונים. מומלץ לגבות כעת.</span>
+      <button className="btn btn-sm" style={{background:'#F59E0B',color:'#fff',border:'none'}} disabled={running} onClick={async()=>{
+        setRunning(true);
+        const ok = await runAutoBackup(state);
+        setRunning(false);
+        if(ok) setDone(true);
+      }}>{running?'מגבה...':'⬇️ גבה עכשיו'}</button>
+      <button className="btn btn-icon btn-sm" onClick={()=>{localStorage.setItem(BACKUP_KEY,new Date().toISOString());setShow(false);}}>✕</button>
+    </div>
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────
 function ExpiryWarningBanner() {
   const {state} = useContext(Ctx);
@@ -3604,6 +3646,7 @@ function App() {
       <Nav route={route} setRoute={setRoute} user={user} open={navOpen} setOpen={setNavOpen}/>
       <main className={`main${(!isMobile&&!navOpen)?' nav-collapsed':''}`}
             style={!isMobile&&navOpen?{}:{marginRight:0}}>
+        <AutoBackupBanner/>
         <ExpiryWarningBanner/>
         <Page onGoToVac={goToVac} focusVacId={focusVacId} onClearFocus={clearFocus} onGoToPlanner={goToPlanner} plannerVacId={plannerVacId}/>
       </main>
