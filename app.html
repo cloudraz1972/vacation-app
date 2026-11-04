@@ -3129,7 +3129,8 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         style={{position:'absolute',right,width,top,height:LANE_H,background:sp.color,borderRadius:br,
           display:'flex',alignItems:'center',overflow:'hidden',boxSizing:'border-box',zIndex:2,
           paddingRight:startsHere?20:2,paddingLeft:endsHere?20:2,
-          fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',userSelect:'none'}}
+          fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',userSelect:'none',
+          pointerEvents:drag?'none':'auto'}}
         onClick={e=>{if(!drag){e.stopPropagation();openEdit(sp);}}}>
         {/* ידית resize ימין (הארכת התחלה) */}
         {startsHere&&(
