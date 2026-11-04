@@ -3014,7 +3014,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         const newStart = ds<=d.fixedEnd ? ds : d.fixedEnd;
         cbRef.current.onUpdSpan(d.id, {startDate:newStart});
       }
-      setDrag(null);
+      ReactDOM.flushSync(()=>setDrag(null));
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -3172,7 +3172,7 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         const rowH=DAY_H+spH+6;
 
         return (
-          <div key={wi} className="gcal-week" style={{minHeight:rowH}}
+          <div key={wi} className="gcal-week" style={{minHeight:rowH, userSelect:drag?'none':undefined}}
             onMouseDown={handleWeekDown}
             onTouchStart={handleWeekDown}>
             {week.map(ds=>{
@@ -3215,10 +3215,19 @@ function GanttView({days, spans, itinerary, vacColor, activeDay, onDayClick, onA
         );
       })}
 
-      <div className="gcal-drag-hint">{embedded
-        ? '💡 לחץ על יום לפירוט שעתי • לחץ על תא ריק להוספת בלוק • גרור ⋮ להארכה'
-        : '💡 לחץ על תא יום להוספת בלוק • גרור לבחירת טווח ימים • גרור ⋮ בקצה הבלוק להארכה • לחץ על מספר היום לתצוגה שעתית'
-      }</div>
+      <div className="gcal-drag-hint" style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        <span>{embedded
+          ? '💡 לחץ על יום לפירוט שעתי • גרור ⋮ בקצה הבלוק להארכה'
+          : '💡 לחץ על תא יום להוספת בלוק • גרור לבחירת טווח ימים • גרור ⋮ בקצה הבלוק להארכה • לחץ על מספר היום לתצוגה שעתית'
+        }</span>
+        {embedded && (
+          <button className="btn btn-primary btn-xs" style={{flexShrink:0}} onClick={()=>{
+            const start = activeDay || days[0];
+            setForm({icon:'🤿',text:'',startDate:start,endDate:start,color:SPAN_COLORS[0]});
+            setEditId(null);
+          }}>+ הוסף בלוק</button>
+        )}
+      </div>
 
       {form && (
         <div className="gcal-form">
